@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Data
 @AllArgsConstructor
@@ -47,6 +48,7 @@ public class RequisitionDTO implements Serializable {
     private BigDecimal registrationFee;
 
     private String status;
+    private String statusName;
     private String fileEcs;
     private String fileCheque;
     private String filePan;
@@ -60,12 +62,23 @@ public class RequisitionDTO implements Serializable {
     private String organizerFaxNo;
     private String organizerEmail;
 
+    private Long actionBy;
+    private Long actionTo;
+    private Long verifiedBy;
+    private Long approvedBy;
     private String initiatingOfficerName;
+    private String verifiedOfficerName;
+    private String approvedOfficerName;
     private String empNo;
     private String empDesigName;
     private String empDivCode;
     private String email;
     private String mobileNo;
+
+    private String forwardByName;
+    private LocalDateTime forwardDate;
+    private LocalDateTime verifiedDate;
+    private LocalDateTime approvedDate;
 
     private MultipartFile multipartFileEcs;
     private MultipartFile multipartFileCheque;

@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.function.Consumer;
@@ -49,8 +50,12 @@ public class TrainingService {
     private final RequisitionRepository requisitionRepository;
     private final FeedbackMapper feedbackMapper;
     private final FeedbackRepository feedbackRepository;
+    private final RequisitionTransactionRepository transactionRepository;
+    private final StatusRepository statusRepository;
+    private final NotificationRepository notificationRepository;
+    private final SignRoleAuthorityRepository signRoleAuthorityRepository;
 
-    public TrainingService(MasterClientService masterClient, OrganizerRepository organizerRepository, AgencyMapper agencyMapper, CalendarMapper calenderMapper, CalenderRepository calenderRepository, ProgramMapper programMapper, ProgramRepository programRepository, RequisitionMapper requisitionMapper, RequisitionRepository requisitionRepository, FeedbackMapper feedbackMapper,FeedbackRepository feedbackRepository) {
+    public TrainingService(MasterClientService masterClient, OrganizerRepository organizerRepository, AgencyMapper agencyMapper, CalendarMapper calenderMapper, CalenderRepository calenderRepository, ProgramMapper programMapper, ProgramRepository programRepository, RequisitionMapper requisitionMapper, RequisitionRepository requisitionRepository, FeedbackMapper feedbackMapper, FeedbackRepository feedbackRepository, RequisitionTransactionRepository transactionRepository, StatusRepository statusRepository, NotificationRepository notificationRepository, SignRoleAuthorityRepository signRoleAuthorityRepository) {
         this.masterClient = masterClient;
         this.organizerRepository = organizerRepository;
         this.agencyMapper = agencyMapper;
@@ -62,6 +67,10 @@ public class TrainingService {
         this.requisitionRepository = requisitionRepository;
         this.feedbackMapper = feedbackMapper;
         this.feedbackRepository = feedbackRepository;
+        this.transactionRepository = transactionRepository;
+        this.statusRepository = statusRepository;
+        this.notificationRepository = notificationRepository;
+        this.signRoleAuthorityRepository = signRoleAuthorityRepository;
     }
 
     @Transactional(readOnly = true)
@@ -100,7 +109,7 @@ public class TrainingService {
         List<CalendarDTO> dtoList = calenderMapper.toDto(calenderList);
 
         dtoList.forEach(dto -> {
-            Organizer organizer = agencyMap.get(dto.getAgencyId());
+            Organizer organizer = agencyMap.get(dto.getOrganizerId());
             if (organizer != null) {
                 dto.setAgency(organizer.getOrganizer());
             }
@@ -188,8 +197,9 @@ public class TrainingService {
         List<Organizer> organizerList = organizerRepository.findAllByIsActive(1);
         List<Program> programList = programRepository.findAllByIsActive(1);
         List<Requisition> list = requisitionRepository.findAllByIsActive(1);
+        List<Status> statusList = statusRepository.findAll();
 
-        List<EmployeeDTO> employeeList = masterClient.getEmployeeList(xApiKey);
+        List<EmployeeDTO> employeeList = masterClient.getEmployeeMasterList(xApiKey);
 
         Map<Long, EmployeeDTO> employeeMap = employeeList.stream()
                 .collect(Collectors.toMap(EmployeeDTO::getEmpId, emp -> emp));
@@ -200,6 +210,9 @@ public class TrainingService {
         Map<Long, Program> programMap = programList.stream()
                 .collect(Collectors.toMap(Program::getProgramId, Function.identity()));
 
+        Map<String, Status> statusMap = statusList.stream()
+                .collect(Collectors.toMap(Status::getStatusCode, Function.identity()));
+
         List<RequisitionDTO> dtoList = requisitionMapper.toDto(list);
 
         dtoList.forEach(dto -> {
@@ -208,6 +221,9 @@ public class TrainingService {
             Organizer organizer = organizerMap.get(program.getOrganizerId());
             dto.setProgramName(program.getProgramName());
             dto.setVenue(program.getVenue());
+
+            Status status = statusMap.get(dto.getStatus());
+            dto.setStatusName(status.getStatusName());
             dto.setRegistrationFee(program.getRegistrationFee());
             if (organizer != null) {
                 dto.setOrganizer(organizer.getOrganizer());
@@ -271,7 +287,7 @@ public class TrainingService {
                     existingReq.setModifiedDate(LocalDateTime.now());
 
                     // ECS
-                    updateFile(dto.getMultipartFileEcs(), existingReq.getFileEcs(), fullpath,existingReq::setFileEcs);
+                    updateFile(dto.getMultipartFileEcs(), existingReq.getFileEcs(), fullpath, existingReq::setFileEcs);
                     // Cheque
                     updateFile(dto.getMultipartFileCheque(), existingReq.getFileCheque(), fullpath, existingReq::setFileCheque);
                     // PAN
@@ -317,17 +333,13 @@ public class TrainingService {
 
 
     public FeedbackDTO requisitionFeedback(@Valid FeedbackDTO dto, String username) {
-        log.info("Request to requisition feedback requisitionId {} by {}", dto.getRequisitionId(),username);
+        log.info("Request to requisition feedback requisitionId {} by {}", dto.getRequisitionId(), username);
         Feedback feedback = feedbackMapper.toEntity(dto);
         feedback.setCreatedBy(username);
         feedback.setCreatedDate(LocalDateTime.now());
         feedback.setIsActive(1);
         feedback = feedbackRepository.save(feedback);
-
-
-        FeedbackDTO feedbackDTO = feedbackMapper.toDto(feedback);
-
-        return feedbackDTO;
+        return feedbackMapper.toDto(feedback);
     }
 
     public List<FeedbackDTO> getFeedbackList(String username) {
@@ -344,7 +356,7 @@ public class TrainingService {
             return Collections.emptyList();
         }
 
-        List<EmployeeDTO> employeeList = masterClient.getEmployeeList(xApiKey);
+        List<EmployeeDTO> employeeList = masterClient.getEmployeeMasterList(xApiKey);
 
         Map<Long, EmployeeDTO> employeeMap = employeeList != null
                 ? employeeList.stream()
@@ -391,4 +403,407 @@ public class TrainingService {
 
         return feedbbackdto;
     }
+
+    @Transactional
+    public RequisitionDTO forwardRequisition(@Valid RequisitionDTO dto, String username) {
+        log.info("Request to froward requisition for id {} ", dto.getRequisitionId());
+
+        if (dto.getRequisitionId() == null) {
+            throw new NotFoundException("Requisition Id can not be null");
+        }
+
+        Requisition requisition = requisitionRepository.findById(dto.getRequisitionId())
+                .orElseThrow(() -> new NotFoundException("Requisition not found"));
+
+        requisition.setStatus("AF");
+        requisition.setModifiedBy(username);
+        requisition.setModifiedDate(LocalDateTime.now());
+
+        List<EmployeeDTO> employeeList = masterClient.getEmployeeMasterList(xApiKey);
+
+        Map<Long, EmployeeDTO> employeeMap = employeeList.stream()
+                .collect(Collectors.toMap(EmployeeDTO::getEmpId, emp -> emp));
+
+        EmployeeDTO employeeDTO = employeeMap.get(requisition.getInitiatingOfficer());
+
+        String message = getNotificationMsg(employeeDTO);
+
+        DivisionDTO divisionDTO = Optional.of(employeeDTO)
+                .map(EmployeeDTO::getDivisionId)
+                .flatMap(id -> Optional.ofNullable(masterClient.getDivisionMaster(xApiKey))
+                        .orElse(Collections.emptyList())
+                        .stream()
+                        .filter(d -> id.equals(d.getDivisionId()))
+                        .findFirst())
+                .orElseThrow(() -> new NotFoundException("Division data not found"));
+
+        insertTransaction(dto.getRequisitionId(), dto.getActionBy(), divisionDTO.getDivisionHeadId(), username, "AF");
+        insertNotification(dto.getActionBy(), divisionDTO.getDivisionHeadId(), "req-approval", message, username);
+        return requisitionMapper.toDto(requisition);
+    }
+
+    @Transactional
+    public RequisitionDTO recommendRequisition(@Valid RequisitionDTO dto, String username) {
+        log.info("Request to recommend requisition for id {} ", dto.getRequisitionId());
+
+        if (dto.getRequisitionId() == null) {
+            throw new NotFoundException("Requisition Id can not be null");
+        }
+
+        Requisition requisition = requisitionRepository.findById(dto.getRequisitionId())
+                .orElseThrow(() -> new NotFoundException("Requisition not found"));
+
+        if(requisition.getStatus().equalsIgnoreCase("AR")){
+            requisition.setStatus("AV");
+            insertTransaction(dto.getRequisitionId(), dto.getActionBy(), dto.getActionBy(), username, "AV");
+        }else {
+            requisition.setStatus("AR");
+
+            SignRoleAuthorityDTO authorityDTO = signRoleAuthorityRepository.findBySignAuthRole("AD-HRT");
+            if (authorityDTO.getSignRoleAuthorityId() == null) {
+                throw new NotFoundException("In SignRoleAuthority AD-HRT role not found");
+            }
+
+            List<EmployeeDTO> employeeList = masterClient.getEmployeeMasterList(xApiKey);
+
+            Map<Long, EmployeeDTO> employeeMap = employeeList.stream()
+                    .collect(Collectors.toMap(EmployeeDTO::getEmpId, emp -> emp));
+
+            EmployeeDTO employeeDTO = employeeMap.get(dto.getActionBy());
+
+            String message = getNotificationMsg(employeeDTO);
+            insertTransaction(dto.getRequisitionId(), dto.getActionBy(), authorityDTO.getEmpId(), username, "AR");
+            insertNotification(dto.getActionBy(), authorityDTO.getEmpId(), "req-approval", message, username);
+        }
+        requisition.setModifiedBy(username);
+        requisition.setModifiedDate(LocalDateTime.now());
+        return requisitionMapper.toDto(requisition);
+    }
+
+    private static String getNotificationMsg(EmployeeDTO employeeDTO) {
+        String prefix = employeeDTO.getTitle() != null && !employeeDTO.getTitle().trim().isEmpty()
+                ? employeeDTO.getTitle()
+                : (employeeDTO.getSalutation() != null ? employeeDTO.getSalutation() : "");
+
+        return String.format(
+                "Requisition forwarded by %s%s%s",
+                prefix.isEmpty() ? "" : prefix + " ",
+                employeeDTO.getEmpName() != null ? employeeDTO.getEmpName() : "",
+                employeeDTO.getEmpDesigName() != null ? ", " + employeeDTO.getEmpDesigName() : ""
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public RequisitionDTO getRequisitionPrint(Long id, String username) {
+
+        log.info("Request to fetch Requisition print data for id {} by {}", id, username);
+
+        if (id == null) {
+            throw new NotFoundException("Requisition id cannot be null");
+        }
+
+        // Fetch requisition
+        Requisition requisition = requisitionRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Requisition not found"));
+
+        RequisitionDTO dto = requisitionMapper.toDto(requisition);
+
+        // Fetch master data
+        List<Organizer> organizerList = organizerRepository.findAllByIsActive(1);
+        List<Program> programList = programRepository.findAllByIsActive(1);
+        List<EmployeeDTO> employeeList = masterClient.getEmployeeMasterList(xApiKey);
+
+        // Convert to maps safely
+        Map<Long, Organizer> organizerMap = organizerList.stream()
+                .collect(Collectors.toMap(Organizer::getOrganizerId, Function.identity()));
+
+        Map<Long, Program> programMap = programList.stream()
+                .collect(Collectors.toMap(Program::getProgramId, Function.identity()));
+
+        Map<Long, EmployeeDTO> employeeMap = employeeList.stream()
+                .collect(Collectors.toMap(EmployeeDTO::getEmpId, Function.identity()));
+
+        // Fetch latest transactions
+        List<RequisitionTransaction> transactions =
+                transactionRepository.findByRequisitionIdAndIsActiveOrderByActionDateDesc(
+                        requisition.getRequisitionId(), 1);
+
+        Map<String, RequisitionTransaction> transactionMap =
+                Optional.ofNullable(transactions)
+                        .orElse(Collections.emptyList())
+                        .stream()
+                        .collect(Collectors.toMap(
+                                RequisitionTransaction::getStatusCode,
+                                Function.identity(),
+                                (existing, replacement) -> existing
+                        ));
+
+        // =========================
+        // Program & Organizer
+        // =========================
+        Program program = programMap.get(requisition.getProgramId());
+
+        if (program != null) {
+            dto.setProgramName(program.getProgramName());
+            dto.setVenue(program.getVenue());
+            dto.setRegistrationFee(program.getRegistrationFee());
+
+            Organizer organizer = organizerMap.get(program.getOrganizerId());
+            if (organizer != null) {
+                dto.setOrganizerId(organizer.getOrganizerId());
+                dto.setOrganizer(organizer.getOrganizer());
+                dto.setOrganizerContactName(organizer.getContactName());
+                dto.setOrganizerPhoneNo(organizer.getPhoneNo());
+                dto.setOrganizerFaxNo(organizer.getFaxNo());
+                dto.setOrganizerEmail(organizer.getEmail());
+            }
+        }
+
+        // =========================
+        // Initiating Officer
+        // =========================
+        EmployeeDTO initiator = employeeMap.get(requisition.getInitiatingOfficer());
+
+        if (initiator != null) {
+            dto.setEmpNo(initiator.getEmpNo());
+            dto.setInitiatingOfficerName(
+                    buildEmployeeName(initiator, false)
+            );
+            dto.setEmpDesigName(initiator.getEmpDesigName());
+            dto.setEmpDivCode(initiator.getEmpDivCode());
+            dto.setEmail(initiator.getEmail());
+            dto.setMobileNo(initiator.getMobileNo());
+        }
+
+        // =========================
+        // Verified & Approved
+        // =========================
+        RequisitionTransaction forwardTxn = transactionMap.get("AF");
+        RequisitionTransaction verifyTxn = transactionMap.get("AR");
+        RequisitionTransaction approveTxn = transactionMap.get("AV");
+
+        EmployeeDTO verified = null;
+        EmployeeDTO approved = null;
+
+        if(forwardTxn !=null) dto.setForwardDate(forwardTxn.getActionDate());
+
+        if (verifyTxn != null && verifyTxn.getActionBy() != null) {
+            verified = employeeMap.get(verifyTxn.getActionBy());
+            dto.setVerifiedBy(verifyTxn.getActionBy());
+            dto.setVerifiedDate(verifyTxn.getActionDate());
+        }
+
+        if (approveTxn != null && approveTxn.getActionBy() != null) {
+            approved = employeeMap.get(approveTxn.getActionBy());
+            dto.setApprovedBy(approveTxn.getActionBy());
+            dto.setApprovedDate(approveTxn.getActionDate());
+        }
+
+        if (verified != null) {
+            dto.setVerifiedOfficerName(
+                    buildEmployeeName(verified, true)
+            );
+        }
+
+        if (approved != null) {
+            dto.setApprovedOfficerName(
+                    buildEmployeeName(approved, true)
+            );
+        }
+
+        return dto;
+    }
+
+    private String buildEmployeeName(EmployeeDTO emp, boolean includeDesignation) {
+
+        if (emp == null) return "";
+
+        String title = Optional.ofNullable(emp.getTitle())
+                .filter(t -> !t.isBlank())
+                .orElse(null);
+
+        String salutation = Optional.ofNullable(emp.getSalutation())
+                .filter(s -> !s.isBlank())
+                .orElse(null);
+
+        String name = Optional.ofNullable(emp.getEmpName()).orElse("");
+        String designation = Optional.ofNullable(emp.getEmpDesigName()).orElse("");
+
+        // Priority: Title → Salutation → Nothing
+        String prefix = title != null ? title : (salutation != null ? salutation : "");
+
+        StringBuilder fullName = new StringBuilder();
+
+        if (!prefix.isBlank()) {
+            fullName.append(prefix).append(" ");
+        }
+
+        fullName.append(name);
+
+        if (includeDesignation && !designation.isBlank()) {
+            fullName.append(", ").append(designation);
+        }
+
+        return fullName.toString().trim();
+    }
+
+    @Transactional(readOnly = true)
+    public List<RequisitionDTO> getRequisitionApprovalList(Long empId, String username) {
+
+        log.info("Request to fetch Requisition approval data for empId {} by {}", empId, username);
+
+        if (empId == null) {
+            throw new NotFoundException("Employee id cannot be null");
+        }
+
+        List<String> statusCodes = List.of("AF", "AR");
+
+        List<Requisition> requisitionList = requisitionRepository.findApprovalList(empId, statusCodes);
+
+        if (requisitionList.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<RequisitionDTO> dtoList = requisitionMapper.toDto(requisitionList);
+        // Fetch master data
+        List<Organizer> organizerList = organizerRepository.findAllByIsActive(1);
+        List<Program> programList = programRepository.findAllByIsActive(1);
+        List<EmployeeDTO> employeeList = masterClient.getEmployeeMasterList(xApiKey);
+        List<Status> statusList = statusRepository.findAll();
+
+        Map<String, Status> statusMap = statusList.stream()
+                .collect(Collectors.toMap(Status::getStatusCode, Function.identity()));
+
+        Map<Long, Organizer> organizerMap = organizerList.stream()
+                .collect(Collectors.toMap(Organizer::getOrganizerId, Function.identity()));
+
+        Map<Long, Program> programMap = programList.stream()
+                .collect(Collectors.toMap(Program::getProgramId, Function.identity()));
+
+        Map<Long, EmployeeDTO> employeeMap = employeeList.stream()
+                .collect(Collectors.toMap(EmployeeDTO::getEmpId, Function.identity()));
+
+        List<RequisitionTransaction> transactions =
+                transactionRepository.findAllByActionToAndStatusCodeInAndIsActive(empId, statusCodes, 1);
+
+        // Keep latest transaction per requisition
+        Map<Long, RequisitionTransaction> transactionMap =
+                transactions.stream()
+                        .collect(Collectors.toMap(
+                                RequisitionTransaction::getRequisitionId,
+                                Function.identity(),
+                                (existing, replacement) ->
+                                        existing.getActionDate().isAfter(replacement.getActionDate())
+                                                ? existing
+                                                : replacement
+                        ));
+
+
+        for (RequisitionDTO dto : dtoList) {
+
+            // Program + Organizer
+            Program program = programMap.get(dto.getProgramId());
+            if (program != null) {
+
+                dto.setProgramName(program.getProgramName());
+                dto.setVenue(program.getVenue());
+                dto.setRegistrationFee(program.getRegistrationFee());
+
+                Organizer organizer = organizerMap.get(program.getOrganizerId());
+                if (organizer != null) {
+                    dto.setOrganizerId(organizer.getOrganizerId());
+                    dto.setOrganizer(organizer.getOrganizer());
+                    dto.setOrganizerContactName(organizer.getContactName());
+                    dto.setOrganizerPhoneNo(organizer.getPhoneNo());
+                    dto.setOrganizerFaxNo(organizer.getFaxNo());
+                    dto.setOrganizerEmail(organizer.getEmail());
+                }
+            }
+
+            Status status = statusMap.get(dto.getStatus());
+            if (status!=null){
+                dto.setStatusName(status.getStatusName());
+            }
+
+            // Transaction Info
+            RequisitionTransaction txn = transactionMap.get(dto.getRequisitionId());
+
+            if (txn != null) {
+                dto.setForwardDate(txn.getActionDate());
+                dto.setActionTo(txn.getActionTo());
+                if (txn.getActionBy() != null) {
+                    EmployeeDTO forwarded = employeeMap.get(txn.getActionBy());
+                    if (forwarded != null) {
+                        dto.setForwardByName(buildEmployeeName(forwarded, true));
+                    }
+                }
+            }
+        }
+
+        return dtoList;
+    }
+
+    @Transactional(readOnly = true)
+    public List<RequisitionTransactionDTO> getRequisitionTransaction(Long reqId, String username) {
+        log.info("Request to fetch Requisition transaction data for requisitionId {} by {}", reqId, username);
+        List<RequisitionTransaction> transactionList = transactionRepository.findAllByRequisitionIdAndIsActive(reqId,1);
+        List<EmployeeDTO> allActiveEmployees = masterClient.getEmployeeMasterList(xApiKey);
+        List<Status> statusList = statusRepository.findAll();
+
+        Map<String, Status> statusMap = statusList.stream()
+                .collect(Collectors.toMap(Status::getStatusCode, Function.identity()));
+
+        Map<Long, EmployeeDTO> employeeMap = allActiveEmployees.stream()
+                .collect(Collectors.toMap(EmployeeDTO::getEmpId, emp -> emp));
+
+        return transactionList.stream().map(data -> {
+
+            Status status = statusMap.get(data.getStatusCode());
+
+            EmployeeDTO employeeBy = employeeMap.get(data.getActionBy());
+            EmployeeDTO employeeTo = employeeMap.get(data.getActionTo());
+
+            RequisitionTransactionDTO dto = new RequisitionTransactionDTO();
+
+            dto.setTransactionId(data.getTransactionId());
+            dto.setRequisitionId(data.getRequisitionId());
+            dto.setActionDate(data.getActionDate());
+            dto.setForwardBy(data.getActionBy());
+            dto.setForwardByName(employeeBy != null ? employeeBy.getEmpName() + ", " + employeeBy.getEmpDesigName() : "");
+            dto.setForwardTo(data.getActionTo());
+            dto.setForwardToName(employeeTo != null ? employeeTo.getEmpName() + ", " + employeeTo.getEmpDesigName() : "");
+            dto.setStatusCode(data.getStatusCode());
+            dto.setStatusDetail(status != null ? status.getStatusName() : "");
+            dto.setColorCode(status != null ? status.getColorCode() : "");
+            dto.setRemarks(data.getRemarks());
+            return dto;
+        }).toList();
+    }
+
+    private void insertTransaction(Long id, Long actionBy, Long actionTo, String username, String status) {
+        RequisitionTransaction transaction = new RequisitionTransaction();
+        transaction.setRequisitionId(id);
+        transaction.setStatusCode(status);
+        transaction.setActionBy(actionBy);
+        transaction.setActionTo(actionTo);
+        transaction.setActionDate(LocalDateTime.now());
+        transaction.setCreatedBy(username);
+        transaction.setCreatedDate(LocalDateTime.now());
+        transaction.setIsActive(1);
+        transactionRepository.save(transaction);
+    }
+
+    private void insertNotification(Long actionBy, Long actionTo, String url, String message, String username) {
+        Notification notification = new Notification();
+        notification.setNotificationBy(actionBy);
+        notification.setEmpId(actionTo);
+        notification.setNotificationDate(LocalDate.now());
+        notification.setNotificationUrl(url);
+        notification.setNotificationMessage(message);
+        notification.setCreatedBy(username);
+        notification.setCreatedDate(LocalDateTime.now());
+        notification.setIsActive(1);
+        notificationRepository.save(notification);
+    }
+
 }

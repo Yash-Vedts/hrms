@@ -14,7 +14,7 @@ public class CalendarDTO implements Serializable {
     private Long calendarId;
 
     @NotNull(message = "Organizer is required")
-    private Long agencyId;
+    private Long organizerId;
     private String agency;
 
     @NotBlank(message = "Year is required")

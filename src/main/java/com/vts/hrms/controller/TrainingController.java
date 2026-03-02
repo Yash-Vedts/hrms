@@ -190,4 +190,46 @@ public class TrainingController {
         );
     }
 
+    @PostMapping(value = "/forward-req")
+    public ResponseEntity<ApiResponse> forwardRequisition(@Valid @RequestBody RequisitionDTO dto, @RequestHeader String username) {
+        RequisitionDTO data = trainingService.forwardRequisition(dto,username);
+        return ResponseEntity.ok(
+                new ApiResponse(true, "Requisition forwarded successfully", data)
+        );
+    }
+
+    @PostMapping(value = "/recommend-req")
+    public ResponseEntity<ApiResponse> recommendRequisition(@Valid @RequestBody RequisitionDTO dto, @RequestHeader String username) {
+        RequisitionDTO data = trainingService.recommendRequisition(dto,username);
+        String message = data.getStatus().equalsIgnoreCase("AR") ? "Requisition recommended successfully" : "Requisition approved successfully";
+        return ResponseEntity.ok(
+                new ApiResponse(true, message, data)
+        );
+    }
+
+    @GetMapping(value = "/requisition-print/{id}")
+    public ResponseEntity<ApiResponse> getRequisitionPrint(@PathVariable Long id, @RequestHeader String username) {
+        RequisitionDTO data = trainingService.getRequisitionPrint(id,username);
+
+        return ResponseEntity.ok(
+                new ApiResponse(true, "Requisition print data fetched", data)
+        );
+    }
+
+    @GetMapping(value = "/req-approval-list")
+    public ResponseEntity<ApiResponse> getRequisitionApprovalList(@RequestParam Long empId, @RequestHeader String username) {
+        List<RequisitionDTO> list = trainingService.getRequisitionApprovalList(empId,username);
+        return ResponseEntity.ok(
+                new ApiResponse(true, "Requisition Approval list fetched successfully", list)
+        );
+    }
+
+    @GetMapping(value = "/req-transaction/{reqId}")
+    public ResponseEntity<ApiResponse> getRequisitionTransaction(@PathVariable Long reqId, @RequestHeader String username) {
+        List<RequisitionTransactionDTO> list = trainingService.getRequisitionTransaction(reqId,username);
+        return ResponseEntity.ok(
+                new ApiResponse(true, "Requisition transaction fetched successfully", list)
+        );
+    }
+
 }

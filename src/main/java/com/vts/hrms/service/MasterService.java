@@ -61,7 +61,7 @@ public class MasterService {
 
         LoginEmployeeDto dto = loginRepository.findByUserName(username);
 
-        List<EmployeeDTO> employeeList = masterClient.getEmployeeList(xApiKey);
+        List<EmployeeDTO> employeeList = masterClient.getEmployeeMasterList(xApiKey);
 
         Map<Long, EmployeeDTO> employeeMap = employeeList.stream()
                 .collect(Collectors.toMap(EmployeeDTO::getEmpId, emp -> emp));
@@ -72,6 +72,7 @@ public class MasterService {
         dto.setEmpNo(employee.getEmpNo());
         dto.setEmployeeType(employee.getEmployeeType());
         dto.setTitle(employee.getTitle());
+        dto.setSalutation(employee.getSalutation());
         dto.setEmpName(employee.getEmpName());
         dto.setEmpDesigName(employee.getEmpDesigName());
         dto.setEmpStatus(employee.getEmpStatus());
@@ -85,7 +86,7 @@ public class MasterService {
 
     public List<EmployeeDTO> getEmployeeList() {
         log.info("Fetching employee master");
-        return masterClient.getEmployeeList(xApiKey);
+        return masterClient.getEmployeeMasterList(xApiKey);
     }
 
     @Transactional(readOnly = true)
@@ -112,7 +113,7 @@ public class MasterService {
         }
 
         List<SignAuthRole> authRoleList = signAuthRoleRepository.findAll();
-        List<EmployeeDTO> employeeList = masterClient.getEmployeeList(xApiKey);
+        List<EmployeeDTO> employeeList = masterClient.getEmployeeMasterList(xApiKey);
 
         Map<Long, SignAuthRole> signRoleMap = authRoleList.stream()
                 .collect(Collectors.toMap(SignAuthRole::getSignAuthRoleId, Function.identity()));

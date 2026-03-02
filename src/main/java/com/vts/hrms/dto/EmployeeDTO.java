@@ -17,6 +17,7 @@ public class EmployeeDTO implements Serializable {
 
     @NotBlank(message = "Title is required")
     private String title;
+    private String salutation;
 
     @NotBlank(message = "Employee code is required")
     private String empNo;
@@ -46,15 +47,14 @@ public class EmployeeDTO implements Serializable {
     private String gender;
     private String email;
     private String mobileNo;
+    private String username;
+    private String labCode;
+    private Long desigId;
+    private String extNo;
+    private String dronaEmail;
+    private String internalEmail;
+    private String internetEmail;
+    private Long superiorOfficer;
+    private int isActive;
 
-    public EmployeeDTO(String title, Long empId, String empNo, String employeeType, String empName, Long designationId, Long divisionId, String empStatus) {
-        this.title = title;
-        this.empId = empId;
-        this.empNo = empNo;
-        this.employeeType = employeeType;
-        this.empName = empName;
-        this.designationId = designationId;
-        this.divisionId = divisionId;
-        this.empStatus = empStatus;
-    }
 }
