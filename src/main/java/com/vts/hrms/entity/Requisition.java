@@ -26,8 +26,8 @@ public class Requisition implements Serializable {
     private String requisitionNumber;
 
     @NotNull
-    @Column(name = "program_id", nullable = false)
-    private Long programId;
+    @Column(name = "course_id", nullable = false)
+    private Long courseId;
 
     @NotNull
     @Column(name = "initiating_officer", nullable = false)
@@ -71,6 +71,9 @@ public class Requisition implements Serializable {
 
     @Column(name = "file_brochure")
     private String fileBrochure;
+
+    @Column(name = "reason")
+    private String reason;
 
     @NotNull
     @Column(name = "is_active", nullable = false)

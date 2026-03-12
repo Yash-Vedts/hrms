@@ -14,20 +14,23 @@ import java.time.LocalDateTime;
 
 @Data
 @Entity
-@Table(name = "hrms_program")
+@Table(name = "hrms_course")
 @Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
-public class Program implements Serializable {
+public class Course implements Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "program_id")
-    private Long programId;
+    @Column(name = "course_id")
+    private Long courseId;
 
-    @Column(name = "program_name")
-    private String programName;
+    @Column(name = "course_name")
+    private String courseName;
 
     @Column(name = "organizer_id")
     private Long organizerId;
+
+    @Column(name = "eligibility_id")
+    private Long eligibilityId;
 
     @Column(name = "from_date")
     private LocalDate fromDate;

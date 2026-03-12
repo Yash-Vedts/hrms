@@ -21,8 +21,8 @@ public class RequisitionDTO implements Serializable {
 
     private Long requisitionId;
 
-    @NotNull(message = "Program is required")
-    private Long programId;
+    @NotNull(message = "Course is required")
+    private Long courseId;
 
     private String requisitionNumber;
 
@@ -49,6 +49,7 @@ public class RequisitionDTO implements Serializable {
     private String necessity;
     private BigDecimal registrationFee;
 
+    private String reason;
     private String status;
     private String statusName;
     private String fileEcs;
@@ -56,7 +57,7 @@ public class RequisitionDTO implements Serializable {
     private String filePan;
     private String fileBrochure;
 
-    private String programName;
+    private String courseName;
     private Long organizerId;
     private String organizer;
     private String organizerContactName;
@@ -76,6 +77,8 @@ public class RequisitionDTO implements Serializable {
     private String empDivCode;
     private String email;
     private String mobileNo;
+
+    private String remarks;
 
     private String forwardByName;
     private LocalDateTime forwardDate;

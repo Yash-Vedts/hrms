@@ -60,15 +60,15 @@ public class MasterController {
 
             // Admin → Get full list
             list = employeeList.stream()
-                    .sorted(Comparator.comparing(EmployeeDTO::getSrNo))
-                    .collect(Collectors.toList());
+                    .sorted(Comparator.comparingLong(e -> e.getSrNo() == 0 ? Long.MAX_VALUE : e.getSrNo()))
+                    .toList();
 
         } else if ("ROLE_USER".equalsIgnoreCase(roleName)) {
 
             // User → Filter only their own empId
             list = employeeList.stream()
                     .filter(emp -> emp.getEmpId().equals(empId))
-                    .sorted(Comparator.comparing(EmployeeDTO::getSrNo))
+                    .sorted(Comparator.comparingLong(e -> e.getSrNo() == 0 ? Long.MAX_VALUE : e.getSrNo()))
                     .collect(Collectors.toList());
 
         } else if ("ROLE_DH".equalsIgnoreCase(roleName)) {
@@ -82,7 +82,7 @@ public class MasterController {
             // DH → Filter only their division employee
             list = employeeList.stream()
                     .filter(emp -> divisionIds.contains(emp.getDivisionId()))
-                    .sorted(Comparator.comparing(EmployeeDTO::getSrNo))
+                    .sorted(Comparator.comparingLong(e -> e.getSrNo() == 0 ? Long.MAX_VALUE : e.getSrNo()))
                     .toList();
         } else {
 

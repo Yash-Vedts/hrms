@@ -17,15 +17,15 @@ public interface EvaluationRepository extends JpaRepository<Evaluation, Long> {
                     e.evaluationId,
                     e.requisitionId,
                     e.traineeId,
-                    p.programId,
+                    p.courseId,
                     e.impact,
-                    p.programName,
+                    p.courseName,
                     r.fromDate,
                     r.toDate
                 )
                 FROM Evaluation e
-                LEFT JOIN Requisition r ON r.requisitionId = e.requisitionId
-                LEFT JOIN Program p ON p.programId = r.programId
+                LEFT JOIN Requisition r ON r.requisitionId = e.requisitionId AND r.status = "AV"
+                LEFT JOIN Course p ON p.courseId = r.courseId
                 WHERE e.isActive = 1
                 AND r.fromDate >= :fromDate AND r.toDate <= :toDate
                 ORDER BY r.fromDate DESC
@@ -37,15 +37,15 @@ public interface EvaluationRepository extends JpaRepository<Evaluation, Long> {
                     e.evaluationId,
                     e.requisitionId,
                     e.traineeId,
-                    p.programId,
+                    p.courseId,
                     e.impact,
-                    p.programName,
+                    p.courseName,
                     r.fromDate,
                     r.toDate
                 )
                 FROM Evaluation e
                 LEFT JOIN Requisition r ON r.requisitionId = e.requisitionId
-                LEFT JOIN Program p ON p.programId = r.programId
+                LEFT JOIN Course p ON p.courseId = r.courseId
                 WHERE e.isActive = 1 AND e.traineeId = :id
             """)
     List<EvaluationDTO> findByEmployee(@Param("id") Long id);

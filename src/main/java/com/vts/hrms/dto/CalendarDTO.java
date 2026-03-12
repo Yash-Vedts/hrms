@@ -15,16 +15,15 @@ public class CalendarDTO implements Serializable {
 
     @NotNull(message = "Organizer is required")
     private Long organizerId;
-    private String agency;
+    private String organizer;
 
     @NotBlank(message = "Year is required")
     private String year;
 
-    @NotBlank(message = "Training Name is required")
-    private String trainingName;
-
-    private String fileName;
+    private String calendarFileName;
+    private String coveringLetter;
     private MultipartFile file;
+    private MultipartFile coverFile;
     private String createdBy;
     private LocalDateTime createdDate;
 

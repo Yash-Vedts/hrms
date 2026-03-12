@@ -1,5 +1,6 @@
 package com.vts.hrms.repository;
 
+import com.vts.hrms.entity.Feedback;
 import com.vts.hrms.entity.Requisition;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -32,4 +33,9 @@ public interface RequisitionRepository extends JpaRepository<Requisition, Long> 
     );
 
     List<Requisition> findAllByIsActiveOrderByRequisitionIdDesc(int isActive);
+
+    List<Requisition> findAllByInitiatingOfficerAndIsActiveOrderByRequisitionIdDesc(Long empId, int isActive);
+
+    List<Requisition> findAllByInitiatingOfficerInAndIsActiveOrderByRequisitionIdDesc(List<Long> empIds, int isActive);
+
 }
