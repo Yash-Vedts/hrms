@@ -8,6 +8,8 @@ import com.vts.hrms.repository.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +39,9 @@ public class AdminService {
     @Value("${x_api_key}")
     private String xApiKey;
 
+    @Value("${labCode}")
+    private String labCode;
+
     public AdminService(RoleRepository roleRepository, LoginRepository loginRepository, RoleSecurityRepository roleSecurityRepository, MasterClientService masterClient, FormModuleRepository formModuleRepository, FormDetailRepository formDetailRepository, FormRoleAccessRepository formRoleAccessRepository, NotificationRepository notificationRepository) {
         this.roleRepository = roleRepository;
         this.loginRepository = loginRepository;
@@ -48,6 +53,7 @@ public class AdminService {
         this.notificationRepository = notificationRepository;
     }
 
+    @Cacheable(value = "roleList")
     public List<RoleDTO> getRoleList() {
         log.info("Fetching all roles");
         return roleRepository
@@ -60,6 +66,7 @@ public class AdminService {
                 }).toList();
     }
 
+    @Cacheable(value = "userList")
     public List<UserResponseDTO> getUserList() {
         log.info("Fetching all users");
         List<UserResponseDTO> userList = loginRepository.getUserList();
@@ -67,6 +74,7 @@ public class AdminService {
         List<EmployeeDTO> employeeList = masterClient.getEmployeeMasterList(xApiKey);
 
         Map<Long, EmployeeDTO> employeeMap = employeeList.stream()
+                .filter(e -> labCode != null && labCode.equalsIgnoreCase(e.getLabCode()))
                 .collect(Collectors.toMap(EmployeeDTO::getEmpId, emp -> emp));
 
         // Set employee details into user response
@@ -92,6 +100,7 @@ public class AdminService {
     }
 
 
+    @CacheEvict(value = "userList")
     @Transactional
     public UserResponseDTO addNewUser(UserResponseDTO dto, String username) {
 
@@ -142,6 +151,7 @@ public class AdminService {
         }
     }
 
+    @CacheEvict(value = "userList")
     @Transactional
     public UserResponseDTO updateUser(UserResponseDTO dto, String username) {
 
@@ -190,7 +200,8 @@ public class AdminService {
         }
     }
 
-    @Transactional
+
+    @Cacheable(value = "formModuleListByRole", key = "#FormRoleId")
     public List<FormModuleDto> formModuleList(Long FormRoleId) throws Exception {
         log.info(" Inside formModuleList ");
         try {
@@ -219,7 +230,7 @@ public class AdminService {
     }
 
 
-    @Transactional
+    @Cacheable(value = "formModuleList")
     public List<FormModuleDto> getformModulelist() throws Exception {
         log.info(" AdminServiceImpl Inside method getformModulelist ");
         List<FormModuleDto> FMlist = new ArrayList<FormModuleDto>();
@@ -245,7 +256,7 @@ public class AdminService {
     }
 
 
-    @Transactional
+    @Cacheable(value = "formModuleDetailListByRole", key = "#FormRoleId")
     public List<FormDetailDto> formModuleDetailList(Long FormRoleId) throws Exception {
         log.info(" Inside formModuleDetailList ");
         try {
@@ -278,7 +289,7 @@ public class AdminService {
     }
 
 
-    @Transactional
+    @Cacheable(value = "formRoleAccessListByRole", key = "#roleId + '_' + #formModuleId")
     public List<FormRoleAccessDto> getformRoleAccessList(String roleId, String formModuleId) {
         log.info(" AdminServiceImpl Inside method getformRoleAccessList");
         try {
@@ -305,6 +316,8 @@ public class AdminService {
         }
     }
 
+    @CacheEvict(value = {"formRoleAccessListByRole", "formModuleListByRole",
+            "formModuleDetailListByRole"}, allEntries = true)
     @Transactional
     public String updateformroleaccess(FormRoleAccessDto accessDto, String username) {
         log.info(" AdminServiceImpl Inside method updateformroleaccess");
@@ -376,6 +389,7 @@ public class AdminService {
         return count;
     }
 
+    @Cacheable(value = "notificationList", key = "#username")
     public List<NotificationDTO> getNotificationList(String username) {
         log.info("Inside method getNotificationList ");
         Login login = loginRepository.findByUsernameAndIsActive(username, 1);
@@ -399,6 +413,7 @@ public class AdminService {
                 .collect(Collectors.toList());
     }
 
+    @CacheEvict(value = "notificationList", allEntries = true)
     public long updateNotification(String username, String notificationId) {
         log.info("Inside method updateNotification ");
         try {

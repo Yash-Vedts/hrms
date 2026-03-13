@@ -11,6 +11,8 @@ import com.vts.hrms.repository.SignRoleAuthorityRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +32,9 @@ public class MasterService {
     @Value("${x_api_key}")
     private String xApiKey;
 
+    @Value("${labCode}")
+    private String labCode;
+
     private final MasterClientService masterClient;
     private final LoginRepository loginRepository;
     private final SignAuthRoleRepository signAuthRoleRepository;
@@ -46,11 +51,13 @@ public class MasterService {
         this.signRoleAuthorityMapper = signRoleAuthorityMapper;
     }
 
+    @Cacheable(value = "designationList")
     public List<DesignationDTO> getEmpDesigMaster() {
         log.info("Fetching designation master");
         return masterClient.getEmpDesigMaster(xApiKey);
     }
 
+    @Cacheable(value = "divisionList")
     public List<DivisionDTO> getDivisionMaster() {
         log.info("Fetching division master");
         return masterClient.getDivisionMaster(xApiKey);
@@ -64,6 +71,7 @@ public class MasterService {
         List<EmployeeDTO> employeeList = masterClient.getEmployeeMasterList(xApiKey);
 
         Map<Long, EmployeeDTO> employeeMap = employeeList.stream()
+                .filter(e -> labCode != null && labCode.equalsIgnoreCase(e.getLabCode()))
                 .collect(Collectors.toMap(EmployeeDTO::getEmpId, emp -> emp));
 
         EmployeeDTO employee = employeeMap.get(dto.getEmpId());
@@ -84,21 +92,24 @@ public class MasterService {
         return dto;
     }
 
+    @Cacheable(value = "employeeList")
     public List<EmployeeDTO> getEmployeeList() {
         log.info("Fetching employee master");
         return masterClient.getEmployeeMasterList(xApiKey);
     }
 
+    @Cacheable(value = "signAuthRoles", key = "#username")
     @Transactional(readOnly = true)
     public List<SignAuthRoleDTO> getSignAuthRoles(String username) {
         log.info("Request to get all SignAuthRoles by username {}", username);
         return signAuthRoleRepository
-                .findAll()
+                .findAllByIsActive(1)
                 .stream()
                 .map(signAuthRoleMapper::toDto)
                 .collect(Collectors.toCollection(LinkedList::new));
     }
 
+    @Cacheable(value = "signAuthorities", key = "#username")
     @Transactional(readOnly = true)
     public List<SignRoleAuthorityDTO> getSignAuthorities(String username) {
         log.info("Request to get all sign role authority list by username {}", username);
@@ -119,6 +130,7 @@ public class MasterService {
                 .collect(Collectors.toMap(SignAuthRole::getSignAuthRoleId, Function.identity()));
 
         Map<Long, EmployeeDTO> employeeMap = employeeList.stream()
+                .filter(e -> labCode != null && labCode.equalsIgnoreCase(e.getLabCode()))
                 .collect(Collectors.toMap(EmployeeDTO::getEmpId, Function.identity()));
 
         for (SignRoleAuthorityDTO dto : authorityDTOList) {
@@ -137,6 +149,7 @@ public class MasterService {
         return authorityDTOList;
     }
 
+    @CacheEvict(value="signAuthorities", allEntries=true)
     public SignRoleAuthorityDTO addSignRoleAuthority(SignRoleAuthorityDTO dto, String username) {
         SignRoleAuthority roleAuthority = signRoleAuthorityMapper.toEntity(dto);
         roleAuthority.setCreatedBy(username);
@@ -146,6 +159,7 @@ public class MasterService {
         return signRoleAuthorityMapper.toDto(roleAuthority);
     }
 
+    @CacheEvict(value="signAuthorities", allEntries=true)
     public Optional<SignRoleAuthorityDTO> updateSignRoleAuthority(SignRoleAuthorityDTO dto, String username) {
         log.info("Request to update sign role authority for id {} by {}", dto.getSignRoleAuthorityId(), username);
         return signRoleAuthorityRepository

@@ -40,7 +40,7 @@ public class EmployeeDTO implements Serializable {
     private Long srNo;
     private String empDesigName;
     private String empDesigCode;
-    private String designationCadre;
+    private String desigCadre;
     private String empDivCode;
     private String roleName;
     private String maritalStatus;

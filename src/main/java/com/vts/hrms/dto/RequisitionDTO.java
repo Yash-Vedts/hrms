@@ -52,6 +52,7 @@ public class RequisitionDTO implements Serializable {
     private String reason;
     private String status;
     private String statusName;
+    private String statusColor;
     private String fileEcs;
     private String fileCheque;
     private String filePan;
