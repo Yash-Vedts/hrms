@@ -360,10 +360,18 @@ public class TrainingController {
 
 
     @PostMapping(value = "/add-eligible")
-    public ResponseEntity<ApiResponse> addEligibleData(@Valid @RequestBody EligibilityDTO dto, @RequestHeader String username) throws IOException {
+    public ResponseEntity<ApiResponse> addEligibleData(@Valid @RequestBody EligibilityDTO dto, @RequestHeader String username) {
         EligibilityDTO data = trainingService.addEligibleData(dto,username);
         return ResponseEntity.ok(
                 new ApiResponse(true, "Eligibility data added successfully", data)
+        );
+    }
+
+    @PutMapping(value = "/update-eligible")
+    public ResponseEntity<ApiResponse> updateEligibleData(@Valid @RequestBody EligibilityDTO dto, @RequestHeader String username) {
+        Optional<EligibilityDTO> data = trainingService.updateEligibleData(dto,username);
+        return ResponseEntity.ok(
+                new ApiResponse(true, "Eligibility data updated successfully", data)
         );
     }
 

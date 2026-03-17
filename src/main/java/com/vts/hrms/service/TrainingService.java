@@ -1061,12 +1061,14 @@ public class TrainingService {
         return organizerRepository.findById(organizerId).map(organizerMapper::toDto);
     }
 
+    @Transactional(readOnly = true)
     public List<EligibilityDTO> getEligibilityList(String username) {
         log.info("Request to fetch eligibility list by {}", username);
         List<Eligibility> list = eligibilityRepository.findAllByIsActiveOrderByEligibilityIdDesc(1);
         return eligibilityMapper.toDto(list);
     }
 
+    @Transactional
     public EligibilityDTO addEligibleData(@Valid EligibilityDTO dto, String username) {
         log.info("Request to add eligibility name {} by {}", dto.getEligibilityName(), username);
         Eligibility eligibility = eligibilityMapper.toEntity(dto);
@@ -1076,6 +1078,25 @@ public class TrainingService {
         eligibility = eligibilityRepository.save(eligibility);
 
         return eligibilityMapper.toDto(eligibility);
+    }
+
+    @Transactional
+    public Optional<EligibilityDTO> updateEligibleData(@Valid EligibilityDTO dto, String username) {
+        log.info("Request to update eligibility for id {} by {}", dto.getEligibilityId(), username);
+
+        if (dto.getEligibilityId() == null) {
+            throw new NotFoundException("EligibilityId Id can not be null");
+        }
+        return eligibilityRepository
+                .findById(dto.getEligibilityId())
+                .map(existingData -> {
+                    existingData.setModifiedBy(username);
+                    existingData.setModifiedDate(LocalDateTime.now());
+                    eligibilityMapper.partialUpdate(existingData, dto);
+                    return existingData;
+                })
+                .map(eligibilityRepository::save)
+                .map(eligibilityMapper::toDto);
     }
 
     @Transactional

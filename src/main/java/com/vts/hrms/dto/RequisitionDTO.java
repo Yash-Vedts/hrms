@@ -44,6 +44,7 @@ public class RequisitionDTO implements Serializable {
     @NotBlank(message = "Course submission is required")
     private String isSubmitted;
 
+    private BigDecimal registrationFee;
     private String reference;
     private String venue;
     private String necessity;

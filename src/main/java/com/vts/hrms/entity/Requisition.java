@@ -8,6 +8,7 @@ import org.hibernate.annotations.Cache;
 import org.hibernate.annotations.CacheConcurrencyStrategy;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -45,6 +46,9 @@ public class Requisition implements Serializable {
 
     @Column(name = "duration")
     private Integer duration;
+
+    @Column(name = "registration_fee")
+    private BigDecimal registrationFee;
 
     @Column(name = "mode_of_payment")
     private String modeOfPayment;

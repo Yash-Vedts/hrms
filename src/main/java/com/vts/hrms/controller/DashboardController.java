@@ -1,13 +1,13 @@
 package com.vts.hrms.controller;
 
 import com.vts.hrms.dto.CourseDashboardDTO;
+import com.vts.hrms.dto.RequisitionDTO;
 import com.vts.hrms.dto.RequisitionDashboardDTO;
 import com.vts.hrms.service.DashboardService;
+import com.vts.hrms.service.TrainingService;
+import com.vts.hrms.util.ApiResponse;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -17,9 +17,11 @@ import java.util.List;
 public class DashboardController {
 
     private final DashboardService dashboardService;
+    private final TrainingService trainingService;
 
-    public DashboardController(DashboardService dashboardService) {
+    public DashboardController(DashboardService dashboardService, TrainingService trainingService) {
         this.dashboardService = dashboardService;
+        this.trainingService = trainingService;
     }
 
     @GetMapping("/course-count")
@@ -51,6 +53,14 @@ public class DashboardController {
                 dashboardService.getRequisitionFilterDashboard(startDate, endDate);
 
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping(value = "/requisition-list")
+    public ResponseEntity<List<RequisitionDTO>> getRequisitionList(@RequestParam Long empId, @RequestParam String roleName,
+                                                                   @RequestHeader(value = "username", required = false) String username) {
+        List<RequisitionDTO> list = trainingService.getRequisitionList(empId, roleName, username);
+
+        return ResponseEntity.ok(list);
     }
 
 }

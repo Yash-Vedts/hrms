@@ -28,6 +28,8 @@ public class CourseDTO implements Serializable {
     private String organizer;
 
     @NotNull(message = "Registration Fee is required")
+    private BigDecimal registrationFee;
+
     private BigDecimal offlineRegistrationFee;
 
     private BigDecimal onlineRegistrationFee;
