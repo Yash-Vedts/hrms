@@ -3,16 +3,22 @@ package com.vts.hrms.controller;
 
 import com.vts.hrms.auth.AuthenticationController;
 import com.vts.hrms.dto.*;
+import com.vts.hrms.entity.Login;
+import com.vts.hrms.entity.RoleSecurity;
+import com.vts.hrms.repository.LoginRepository;
 import com.vts.hrms.service.AdminService;
 import com.vts.hrms.util.ApiResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping(value = "/api/admin")
@@ -22,18 +28,20 @@ public class AdminController {
 
     private final AdminService adminService;
 
-    public AdminController(AdminService adminService) {
+    private final LoginRepository loginRepository;
+
+    public AdminController(AdminService adminService,LoginRepository loginRepository) {
+
         this.adminService = adminService;
+        this.loginRepository=loginRepository;
     }
 
 
     @GetMapping(value = "/roles")
-    public ResponseEntity<ApiResponse> getRoleList() {
+    public ResponseEntity<List<RoleDTO>> getRoleList() {
         List<RoleDTO> list = adminService.getRoleList();
 
-        return ResponseEntity.ok(
-                new ApiResponse(true, "Role list fetched", list)
-        );
+        return ResponseEntity.ok(list);
     }
 
     @GetMapping(value = "/user-list")
@@ -72,6 +80,25 @@ public class AdminController {
                 new ApiResponse(true, "User updated successfully", saved)
         );
     }
+
+    @PostMapping(value = "/role-update", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> roleUpdate(@RequestHeader String username, @RequestBody UserResponseDTO dto) throws Exception{
+        LOG.info( "Inside roleUpdate : username :{} , dto : {} ", username, dto);
+        try {
+            Login login = loginRepository.findByUsernameAndIsActive(dto.getUsername(),1);
+            if(login!=null) {
+                dto.setLoginId(login.getLoginId());
+                adminService.updateUser(dto, username);
+            }else {
+               adminService.addNewUser(dto, username);
+            }
+            return new ResponseEntity<String>("200" , HttpStatus.OK);
+        } catch (Exception e) {
+            LOG.error("Error fetching userInsert:{} ",e.getMessage());
+            return ResponseEntity.status(500).body("Error occurred: " + e.getMessage());
+        }
+    }
+
 
     @RequestMapping(value = "/header-module", method = RequestMethod.POST, produces = "application/json")
     public List<FormModuleDto> headerModule(@RequestBody Long FormRoleId) throws Exception {
@@ -175,5 +202,28 @@ public class AdminController {
             return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
         }
     }
+
+
+    @PostMapping(value = "/get-role-username", produces = MediaType.APPLICATION_JSON_VALUE)
+    public List<Long> getRoleByUsername(@RequestHeader String username) {
+        try {
+            Login login = loginRepository.findByUsernameAndIsActive(username,1);
+
+            List<Long> roleIds = login.getRoleSecurity().stream()
+                    .map(RoleSecurity::getRoleId)
+                    .collect(Collectors.toList());
+
+            // You can now store these or perform logic
+            LOG.info("Extracted Role IDs for {}: {}", username, roleIds);
+
+            return roleIds; // Returns a JSON array like [1, 2, 3]
+
+        } catch (Exception e) {
+            LOG.error("Error processing roles: ", e);
+            return new ArrayList<>();
+        }
+    }
+
+
 
 }

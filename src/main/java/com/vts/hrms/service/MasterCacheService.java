@@ -1,0 +1,67 @@
+package com.vts.hrms.service;
+
+import com.vts.hrms.dto.EmployeeDTO;
+import com.vts.hrms.entity.Course;
+import com.vts.hrms.entity.Organizer;
+import com.vts.hrms.entity.Status;
+import com.vts.hrms.repository.CourseRepository;
+import com.vts.hrms.repository.OrganizerRepository;
+import com.vts.hrms.repository.StatusRepository;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+@Service
+public class MasterCacheService {
+
+    @Value("${x_api_key}")
+    private String xApiKey;
+
+    @Value("${labCode}")
+    private String labCode;
+
+    private final MasterClientService masterClient;
+    private final OrganizerRepository organizerRepository;
+    private final CourseRepository courseRepository;
+    private final StatusRepository statusRepository;
+
+    public MasterCacheService(MasterClientService masterClient, OrganizerRepository organizerRepository, CourseRepository courseRepository, StatusRepository statusRepository) {
+        this.masterClient = masterClient;
+        this.organizerRepository = organizerRepository;
+        this.courseRepository = courseRepository;
+        this.statusRepository = statusRepository;
+    }
+
+    @Cacheable(value = "employeeMapCache", key = "'employeeMap'")
+    public Map<Long, EmployeeDTO> getLongEmployeeDTOMap() {
+        List<EmployeeDTO> employeeList = masterClient.getEmployeeMasterList(xApiKey);
+
+        return employeeList.stream()
+                .filter(e -> labCode != null && labCode.equalsIgnoreCase(e.getLabCode()))
+                .collect(Collectors.toMap(EmployeeDTO::getEmpId, emp -> emp));
+    }
+
+    @Cacheable(value = "organizerCache", key = "'organizers'")
+    public Map<Long, Organizer> getOrganizerMap() {
+        return organizerRepository.findAllByIsActive(1).stream()
+                .collect(Collectors.toMap(Organizer::getOrganizerId, Function.identity()));
+    }
+
+    @Cacheable(value = "courseCache", key = "'courses'")
+    public Map<Long, Course> getCourseMap() {
+        return courseRepository.findAllByIsActive(1).stream()
+                .collect(Collectors.toMap(Course::getCourseId, Function.identity()));
+    }
+
+    @Cacheable(value = "statusCache", key = "'status'")
+    public Map<String, Status> getStatusMap() {
+        return statusRepository.findAll().stream()
+                .collect(Collectors.toMap(Status::getStatusCode, Function.identity()));
+    }
+
+}

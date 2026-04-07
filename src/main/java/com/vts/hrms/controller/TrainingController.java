@@ -152,6 +152,15 @@ public class TrainingController {
         );
     }
 
+    @GetMapping(value = "/course-type")
+    public ResponseEntity<ApiResponse> getCourseTypeList(@RequestHeader String username) {
+        List<CourseTypeDTO> list = trainingService.getCourseTypeList(username);
+
+        return ResponseEntity.ok(
+                new ApiResponse(true, "Course type list fetched", list)
+        );
+    }
+
     @PostMapping(value = "/add-requisition", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse> addRequisitionData(@Valid @ModelAttribute RequisitionDTO dto, @RequestHeader String username) throws IOException {
         RequisitionDTO data = trainingService.addRequisitionData(dto,username);
@@ -217,8 +226,8 @@ public class TrainingController {
         );
     }
 
-    @PostMapping(value = "/requisition-feedback")
-    public ResponseEntity<ApiResponse> requisitionFeedback(@Valid @RequestBody FeedbackDTO dto, @RequestHeader String username) throws IOException {
+    @PostMapping(value = "/requisition-feedback", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse> requisitionFeedback(@ModelAttribute FeedbackDTO dto, @RequestHeader String username) throws IOException {
         FeedbackDTO data = trainingService.requisitionFeedback(dto,username);
         return ResponseEntity.ok(
                 new ApiResponse(true, "Feedback submitted successfully", data)
@@ -241,8 +250,8 @@ public class TrainingController {
         );
     }
 
-    @PutMapping(value = "/update-feedback")
-    public ResponseEntity<ApiResponse> updateFeedback(@Valid @RequestBody FeedbackDTO dto, @RequestHeader String username) throws IOException {
+    @PutMapping(value = "/update-feedback", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse> updateFeedback(@ModelAttribute FeedbackDTO dto, @RequestHeader String username) throws IOException {
         Optional<FeedbackDTO> data = trainingService.updateFeedback(dto,username);
         return ResponseEntity.ok(
                 new ApiResponse(true, "Feedback updated successfully", data)
@@ -372,6 +381,85 @@ public class TrainingController {
         Optional<EligibilityDTO> data = trainingService.updateEligibleData(dto,username);
         return ResponseEntity.ok(
                 new ApiResponse(true, "Eligibility data updated successfully", data)
+        );
+    }
+
+    @GetMapping(value = "/feedback-file/{feedId}/{type}")
+    public ResponseEntity<Resource> downloadFeedbackFile(@PathVariable Long feedId, @PathVariable String type, @RequestHeader String username) {
+        try {
+
+            FeedbackDTO dto = trainingService.getFeedbackById(feedId, username);
+            RequisitionDTO requisitionDTO = trainingService.getRequisitionById(dto.getRequisitionId(), username);
+            Path fullpath = Paths.get(appStorage, "Requisition",
+                    requisitionDTO.getRequisitionNumber().replace("/","_"), "Feedback");
+            Path filePath = null;
+
+            if(type.equalsIgnoreCase("certificate")){
+                if(dto.getCertificate()!=null && !dto.getCertificate().isEmpty()){
+                    filePath = fullpath.resolve(dto.getCertificate());
+                }
+            }
+            if(type.equalsIgnoreCase("invoice")){
+                if(dto.getInvoice()!=null && !dto.getInvoice().isEmpty()){
+                    filePath = fullpath.resolve(dto.getInvoice());
+                }
+            }
+
+            assert filePath != null;
+            if (!Files.exists(filePath)) {
+                return ResponseEntity.notFound().build();
+            }
+
+            String contentType = Files.probeContentType(filePath);
+
+            // Fallback content type
+            if (contentType == null) {
+                contentType = "application/octet-stream";
+            }
+
+            Resource resource = new UrlResource(filePath.toUri());
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"" + type + "\"")
+                    .body(resource);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping(value = "/req-approved-list")
+    public ResponseEntity<ApiResponse> getRequisitionApprovedList(@RequestParam String roleName, @RequestHeader String username) {
+        List<RequisitionDTO> list = trainingService.getRequisitionApprovedList(roleName,username);
+
+        return ResponseEntity.ok(
+                new ApiResponse(true, "Requisition approved list fetched", list)
+        );
+    }
+
+    @PostMapping(value = "/forward-director")
+    public ResponseEntity<ApiResponse> reqForwardToDirector(@RequestBody DirectorApproveDTO dto, @RequestHeader String username) throws IOException {
+        DirectorApproveDTO data = trainingService.reqForwardToDirector(dto,username);
+        return ResponseEntity.ok(
+                new ApiResponse(true, "Requisition forward to director successfully", data)
+        );
+    }
+
+    @PostMapping(value = "/approve-req")
+    public ResponseEntity<ApiResponse> approveRequisition(@RequestBody DirectorApproveDTO dto, @RequestHeader String username) throws IOException {
+        DirectorApproveDTO data = trainingService.approveRequisition(dto,username);
+        return ResponseEntity.ok(
+                new ApiResponse(true, "Requisition approved successfully", data)
+        );
+    }
+
+    @PostMapping(value = "/recommend-dfa")
+    public ResponseEntity<ApiResponse> recommendReqToDFA(@RequestBody DirectorApproveDTO dto, @RequestHeader String username) throws IOException {
+        DirectorApproveDTO data = trainingService.recommendReqToDFA(dto,username);
+        return ResponseEntity.ok(
+                new ApiResponse(true, "Requisition recommend to DFA successfully", data)
         );
     }
 

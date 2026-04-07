@@ -39,7 +39,7 @@ public class ReportService {
     private final ObjectMapper objectMapper;
     private final RequisitionMapper requisitionMapper;
     private final RequisitionRepository requisitionRepository;
-    private final TrainingService trainingService;
+    private final MasterCacheService masterCacheService;
 
     @Cacheable(value = "getNominalROllList")
     public List<EmployeeDTO> getNominalRollList(String token) {
@@ -91,10 +91,10 @@ public class ReportService {
     public List<RequisitionDTO> getCourseTrainingList() {
         log.info("Fetching course training data");
 
-        Map<Long, EmployeeDTO> employeeMap = trainingService.getLongEmployeeDTOMap();
-        Map<Long, Organizer> organizerMap = trainingService.getOrganizerMap();
-        Map<Long, Course> courseMap = trainingService.getCourseMap();
-        Map<String, Status> statusMap = trainingService.getStatusMap();
+        Map<Long, EmployeeDTO> employeeMap = masterCacheService.getLongEmployeeDTOMap();
+        Map<Long, Organizer> organizerMap = masterCacheService.getOrganizerMap();
+        Map<Long, Course> courseMap = masterCacheService.getCourseMap();
+        Map<String, Status> statusMap = masterCacheService.getStatusMap();
 
         List<Requisition> list = requisitionRepository.findAllByIsActive(1);
 

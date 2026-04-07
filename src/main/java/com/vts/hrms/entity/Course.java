@@ -26,8 +26,14 @@ public class Course implements Serializable {
     @Column(name = "course_code")
     private String courseCode;
 
+    @Column(name = "course_level")
+    private String courseLevel;
+
     @Column(name = "course_name")
     private String courseName;
+
+    @Column(name = "course_type_id")
+    private Long courseTypeId;
 
     @Column(name = "organizer_id")
     private Long organizerId;

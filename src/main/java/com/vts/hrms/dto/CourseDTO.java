@@ -17,8 +17,12 @@ public class CourseDTO implements Serializable {
     @NotBlank(message = "Course Name is required")
     private String courseName;
 
+    private String courseLevel;
+    private Long courseTypeId;
+
     @NotNull(message = "Eligibility is required")
     private Long eligibilityId;
+
 
     private String eligibilityName;
 
