@@ -44,5 +44,11 @@ public interface LoginRepository extends JpaRepository<Login, Long> {
 
     boolean existsByUsernameAndIsActive(String username, int isActive);
 
+    @Query(value = "SELECT DISTINCT d.emp_id, f.role_name, d.login_id ,f.role_id " +
+            "FROM login d " +
+            "JOIN login_role_security e ON e.login_id=d.login_id " +
+            "JOIN role_security f ON f.role_name=:roleDirector AND f.role_id=e.role_id " +
+            "WHERE d.is_active=1 ", nativeQuery = true)
+    LoginEmployeeDto findEmployeeByRoleName(@Param("roleDirector") String roleDirector);
 }
 

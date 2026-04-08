@@ -57,16 +57,18 @@ public class TrainingService {
     private final FeedbackMapper feedbackMapper;
     private final FeedbackRepository feedbackRepository;
     private final RequisitionTransactionRepository transactionRepository;
-    private final StatusRepository statusRepository;
+    private final MasterCacheService masterCacheService;
     private final NotificationRepository notificationRepository;
     private final SignRoleAuthorityRepository signRoleAuthorityRepository;
     private final RequisitionSequenceRepository sequenceRepository;
     private final EvaluationRepository evaluationRepository;
     private final EligibilityMapper eligibilityMapper;
     private final EligibilityRepository eligibilityRepository;
+    private final CourseTypeRepository courseTypeRepository;
+    private final LoginRepository loginRepository;
 
 
-    public TrainingService(MasterClientService masterClient, OrganizerRepository organizerRepository, OrganizerMapper organizerMapper, CalendarMapper calenderMapper, CalenderRepository calenderRepository, CourseMapper courseMapper, CourseRepository courseRepository, RequisitionMapper requisitionMapper, RequisitionRepository requisitionRepository, FeedbackMapper feedbackMapper, FeedbackRepository feedbackRepository, RequisitionTransactionRepository transactionRepository, StatusRepository statusRepository, NotificationRepository notificationRepository, SignRoleAuthorityRepository signRoleAuthorityRepository, RequisitionSequenceRepository sequenceRepository, EvaluationRepository evaluationRepository, EligibilityMapper eligibilityMapper, EligibilityRepository eligibilityRepository) {
+    public TrainingService(MasterClientService masterClient, OrganizerRepository organizerRepository, OrganizerMapper organizerMapper, CalendarMapper calenderMapper, CalenderRepository calenderRepository, CourseMapper courseMapper, CourseRepository courseRepository, RequisitionMapper requisitionMapper, RequisitionRepository requisitionRepository, FeedbackMapper feedbackMapper, FeedbackRepository feedbackRepository, RequisitionTransactionRepository transactionRepository, MasterCacheService masterCacheService, NotificationRepository notificationRepository, SignRoleAuthorityRepository signRoleAuthorityRepository, RequisitionSequenceRepository sequenceRepository, EvaluationRepository evaluationRepository, EligibilityMapper eligibilityMapper, EligibilityRepository eligibilityRepository, CourseTypeRepository courseTypeRepository, LoginRepository loginRepository) {
         this.masterClient = masterClient;
         this.organizerRepository = organizerRepository;
         this.organizerMapper = organizerMapper;
@@ -79,13 +81,15 @@ public class TrainingService {
         this.feedbackMapper = feedbackMapper;
         this.feedbackRepository = feedbackRepository;
         this.transactionRepository = transactionRepository;
-        this.statusRepository = statusRepository;
+        this.masterCacheService = masterCacheService;
         this.notificationRepository = notificationRepository;
         this.signRoleAuthorityRepository = signRoleAuthorityRepository;
         this.sequenceRepository = sequenceRepository;
         this.evaluationRepository = evaluationRepository;
         this.eligibilityMapper = eligibilityMapper;
         this.eligibilityRepository = eligibilityRepository;
+        this.courseTypeRepository = courseTypeRepository;
+        this.loginRepository = loginRepository;
     }
 
     @Transactional(readOnly = true)
@@ -184,7 +188,7 @@ public class TrainingService {
                 .sorted(Comparator.comparing(Course::getCreatedDate).reversed())
                 .toList();
 
-        Map<Long, Organizer> organizerMap = getOrganizerMap();
+        Map<Long, Organizer> organizerMap = masterCacheService.getOrganizerMap();
         Map<Long, Eligibility> eligibilityMap = eligibilityList.stream()
                 .collect(Collectors.toMap(Eligibility::getEligibilityId, Function.identity()));
 
@@ -264,20 +268,18 @@ public class TrainingService {
     @Transactional(readOnly = true)
     public List<RequisitionDTO> getRequisitionList(Long empId, String roleName, String username) {
         log.info("Requisition list fetched for role {} by {}", roleName, username);
-        List<Organizer> organizerList = organizerRepository.findAllByIsActive(1);
-        List<Course> courseList = courseRepository.findAllByIsActive(1);
-        List<Status> statusList = statusRepository.findAll();
 
         List<Requisition> list = new ArrayList<>();
 
         List<EmployeeDTO> employeeList = masterClient.getEmployeeMasterList(xApiKey);
 
-        Map<Long, EmployeeDTO> employeeMap = getLongEmployeeDTOMap();
-        Map<Long, Organizer> organizerMap = getOrganizerMap();
-        Map<Long, Course> courseMap = getCourseMap();
-        Map<String, Status> statusMap = getStatusMap();
+        Map<Long, EmployeeDTO> employeeMap = masterCacheService.getLongEmployeeDTOMap();
+        Map<Long, Organizer> organizerMap = masterCacheService.getOrganizerMap();
+        Map<Long, Course> courseMap = masterCacheService.getCourseMap();
+        Map<String, Status> statusMap = masterCacheService.getStatusMap();
 
-        if (Arrays.asList("ROLE_ADMIN", "ROLE_AD_HRT").contains(roleName)) {
+        if (Arrays.asList("ROLE_ADMIN", "ROLE_AD_HRT", "ROLE_SA_HRT", "ROLE_DIRECTOR",
+                "ROLE_CAG_DIV", "ROLE_TCG_DIV", "ROLE_SM_HRT").contains(roleName)) {
 
             list = requisitionRepository
                     .findAllByIsActiveOrderByRequisitionIdDesc(1);
@@ -352,8 +354,8 @@ public class TrainingService {
         if (id == null) {
             throw new NotFoundException("Requisition id cannot be null");
         }
-        Map<Long, Organizer> organizerMap = getOrganizerMap();
-        Map<Long, Course> courseMap = getCourseMap();
+        Map<Long, Organizer> organizerMap = masterCacheService.getOrganizerMap();
+        Map<Long, Course> courseMap = masterCacheService.getCourseMap();
 
         Requisition requisition = requisitionRepository.findById(id).orElseThrow(() -> new NotFoundException("Requisition not found"));
 
@@ -375,7 +377,7 @@ public class TrainingService {
 
         log.info("Request to update requisition for id {} by {}", dto.getRequisitionId(), username);
 
-        Path fullpath = Paths.get(appStorage, "Requisition");
+        Path fullpath = Paths.get(appStorage, "Requisition", dto.getRequisitionNumber().replace("/", "_"));
 
         return requisitionRepository
                 .findById(dto.getRequisitionId())
@@ -429,13 +431,30 @@ public class TrainingService {
     }
 
 
-    public FeedbackDTO requisitionFeedback(@Valid FeedbackDTO dto, String username) {
+    public FeedbackDTO requisitionFeedback(@Valid FeedbackDTO dto, String username) throws IOException {
         log.info("Request to requisition feedback requisitionId {} by {}", dto.getRequisitionId(), username);
         Feedback feedback = feedbackMapper.toEntity(dto);
         feedback.setIsAccepted("N");
         feedback.setCreatedBy(username);
         feedback.setCreatedDate(LocalDateTime.now());
         feedback.setIsActive(1);
+
+        Requisition requisition = requisitionRepository.findById(dto.getRequisitionId())
+                .orElseThrow(() -> new NotFoundException("Requisition data not found"));
+
+        Path fullpath = Paths.get(appStorage, "Requisition",
+                requisition.getRequisitionNumber().replace("/", "_"), "Feedback");
+
+        if (dto.getCertificateFile() != null && !dto.getCertificateFile().isEmpty()) {
+            feedback.setCertificate(dto.getCertificateFile().getOriginalFilename());
+            FileStorageUtil.saveFile(fullpath, dto.getCertificateFile().getOriginalFilename(), dto.getCertificateFile());
+        }
+
+        if (dto.getInvoiceFile() != null && !dto.getInvoiceFile().isEmpty()) {
+            feedback.setInvoice(dto.getInvoiceFile().getOriginalFilename());
+            FileStorageUtil.saveFile(fullpath, dto.getInvoiceFile().getOriginalFilename(), dto.getInvoiceFile());
+        }
+
         feedback = feedbackRepository.save(feedback);
         return feedbackMapper.toDto(feedback);
     }
@@ -446,7 +465,8 @@ public class TrainingService {
         List<Feedback> feedbackList = new ArrayList<>();
         List<EmployeeDTO> employeeList = masterClient.getEmployeeMasterList(xApiKey);
 
-        if (Arrays.asList("ROLE_ADMIN", "ROLE_AD_HRT").contains(roleName) && empId == 0) {
+        if (Arrays.asList("ROLE_ADMIN", "ROLE_AD_HRT", "ROLE_SA_HRT", "ROLE_DIRECTOR",
+                "ROLE_CAG_DIV", "ROLE_TCG_DIV", "ROLE_SM_HRT").contains(roleName) && empId == 0) {
 
             feedbackList = feedbackRepository.findByIsActiveOrderByFeedbackIdDesc(1);
 
@@ -583,31 +603,39 @@ public class TrainingService {
         Requisition requisition = requisitionRepository.findById(dto.getRequisitionId())
                 .orElseThrow(() -> new NotFoundException("Requisition not found"));
 
-        requisition.setStatus("AF");
-        requisition.setModifiedBy(username);
-        requisition.setModifiedDate(LocalDateTime.now());
 
-        List<EmployeeDTO> employeeList = masterClient.getEmployeeMasterList(xApiKey);
-
-        Map<Long, EmployeeDTO> employeeMap = employeeList.stream()
-                .filter(e -> labCode != null && labCode.equalsIgnoreCase(e.getLabCode()))
-                .collect(Collectors.toMap(EmployeeDTO::getEmpId, emp -> emp));
+        Map<Long, EmployeeDTO> employeeMap = masterCacheService.getLongEmployeeDTOMap();
 
         EmployeeDTO employeeDTO = employeeMap.get(requisition.getInitiatingOfficer());
 
         String message = getNotificationMsg(requisition.getRequisitionNumber(), employeeDTO, "Forward by");
 
-        DivisionDTO divisionDTO = Optional.of(employeeDTO)
-                .map(EmployeeDTO::getDivisionId)
-                .flatMap(id -> Optional.ofNullable(masterClient.getDivisionMaster(xApiKey))
-                        .orElse(Collections.emptyList())
-                        .stream()
-                        .filter(d -> id.equals(d.getDivisionId()))
-                        .findFirst())
-                .orElseThrow(() -> new NotFoundException("Division data not found"));
+        if ("RS".equalsIgnoreCase(requisition.getStatus())) {
+            requisition.setStatus("SF");
 
-        insertTransaction(dto.getRequisitionId(), dto.getActionBy(), divisionDTO.getDivisionHeadId(), username, "AF", null);
-        insertNotification(dto.getActionBy(), divisionDTO.getDivisionHeadId(), "req-approval", message, username);
+            SignRoleAuthorityDTO authorityDTO = signRoleAuthorityRepository.findBySignAuthRole("SA-HRT");
+            if (authorityDTO == null || authorityDTO.getSignRoleAuthorityId() == null) {
+                throw new NotFoundException("In SignRoleAuthority SA-HRT role not found");
+            }
+
+            insertTransaction(dto.getRequisitionId(), dto.getActionBy(), authorityDTO.getEmpId(), username, "SF", null);
+            insertNotification(dto.getActionBy(), authorityDTO.getEmpId(), "req-approval", message, username);
+        } else {
+            requisition.setStatus("AF");
+            DivisionDTO divisionDTO = Optional.of(employeeDTO)
+                    .map(EmployeeDTO::getDivisionId)
+                    .flatMap(id -> Optional.ofNullable(masterClient.getDivisionMaster(xApiKey))
+                            .orElse(Collections.emptyList())
+                            .stream()
+                            .filter(d -> id.equals(d.getDivisionId()))
+                            .findFirst())
+                    .orElseThrow(() -> new NotFoundException("Division data not found"));
+
+            insertTransaction(dto.getRequisitionId(), dto.getActionBy(), divisionDTO.getDivisionHeadId(), username, "AF", null);
+            insertNotification(dto.getActionBy(), divisionDTO.getDivisionHeadId(), "req-approval", message, username);
+        }
+        requisition.setModifiedBy(username);
+        requisition.setModifiedDate(LocalDateTime.now());
         return requisitionMapper.toDto(requisition);
     }
 
@@ -623,27 +651,62 @@ public class TrainingService {
         Requisition requisition = requisitionRepository.findById(dto.getRequisitionId())
                 .orElseThrow(() -> new NotFoundException("Requisition not found"));
 
-        if (requisition.getStatus().equalsIgnoreCase("AR")) {
-            requisition.setStatus("AV");
-            insertTransaction(dto.getRequisitionId(), dto.getActionBy(), dto.getActionBy(), username, "AV", null);
-        } else {
+        if (requisition.getStatus().equalsIgnoreCase("AS") || requisition.getStatus().equalsIgnoreCase("CA")) {
+            if (requisition.getRegistrationFee().longValue() > 0 && !requisition.getStatus().equalsIgnoreCase("CA")) {
+                requisition.setStatus("CA");
+                SignRoleAuthorityDTO authorityDTO = signRoleAuthorityRepository.findBySignAuthRole("AD-HRT");
+                if (authorityDTO == null || authorityDTO.getSignRoleAuthorityId() == null) {
+                    throw new NotFoundException("In SignRoleAuthority AD-HRT role not found");
+                }
+
+                Map<Long, EmployeeDTO> employeeMap = masterCacheService.getLongEmployeeDTOMap();
+                EmployeeDTO employeeDTO = employeeMap.get(dto.getActionBy());
+
+                String message = getNotificationMsg(requisition.getRequisitionNumber(), employeeDTO, "Forward by");
+                insertTransaction(dto.getRequisitionId(), dto.getActionBy(), authorityDTO.getEmpId(), username, "CA", null);
+                insertNotification(dto.getActionBy(), authorityDTO.getEmpId(), "req-approval", message, username);
+            } else {
+                requisition.setStatus("AV");
+                insertTransaction(dto.getRequisitionId(), dto.getActionBy(), dto.getActionBy(), username, "AV", null);
+            }
+        } else if (requisition.getStatus().equalsIgnoreCase("AF")) {
             requisition.setStatus("AR");
 
-            SignRoleAuthorityDTO authorityDTO = signRoleAuthorityRepository.findBySignAuthRole("AD-HRT");
-            if (authorityDTO.getSignRoleAuthorityId() == null) {
-                throw new NotFoundException("In SignRoleAuthority AD-HRT role not found");
+            SignRoleAuthorityDTO authorityDTO = signRoleAuthorityRepository.findBySignAuthRole("SA-HRT");
+            if (authorityDTO == null || authorityDTO.getSignRoleAuthorityId() == null) {
+                throw new NotFoundException("In SignRoleAuthority SA-HRT role not found");
             }
 
-            List<EmployeeDTO> employeeList = masterClient.getEmployeeMasterList(xApiKey);
-
-            Map<Long, EmployeeDTO> employeeMap = employeeList.stream()
-                    .filter(e -> labCode != null && labCode.equalsIgnoreCase(e.getLabCode()))
-                    .collect(Collectors.toMap(EmployeeDTO::getEmpId, emp -> emp));
-
+            Map<Long, EmployeeDTO> employeeMap = masterCacheService.getLongEmployeeDTOMap();
             EmployeeDTO employeeDTO = employeeMap.get(dto.getActionBy());
 
             String message = getNotificationMsg(requisition.getRequisitionNumber(), employeeDTO, "Forward by");
             insertTransaction(dto.getRequisitionId(), dto.getActionBy(), authorityDTO.getEmpId(), username, "AR", null);
+            insertNotification(dto.getActionBy(), authorityDTO.getEmpId(), "req-approval", message, username);
+        } else if (requisition.getStatus().equalsIgnoreCase("AR") || requisition.getStatus().equalsIgnoreCase("SF")) {
+            requisition.setStatus("AS");
+
+            SignRoleAuthorityDTO authorityDTO;
+            String notFoundMsg;
+
+            if (requisition.getRegistrationFee().longValue() > 0) {
+                authorityDTO = signRoleAuthorityRepository.findBySignAuthRole("CAG-Div");
+                notFoundMsg = "In SignRoleAuthority CAG role not found";
+            } else {
+                authorityDTO = signRoleAuthorityRepository.findBySignAuthRole("AD-HRT");
+                notFoundMsg = "In SignRoleAuthority AD-HRT role not found";
+            }
+
+            if (authorityDTO == null || authorityDTO.getSignRoleAuthorityId() == null) {
+                throw new NotFoundException(notFoundMsg);
+            }
+
+            Map<Long, EmployeeDTO> employeeMap = masterCacheService.getLongEmployeeDTOMap();
+
+            EmployeeDTO employeeDTO = employeeMap.get(dto.getActionBy());
+
+            String message = getNotificationMsg(requisition.getRequisitionNumber(), employeeDTO, "Forward by");
+            insertTransaction(dto.getRequisitionId(), dto.getActionBy(), authorityDTO.getEmpId(), username, "AS", null);
             insertNotification(dto.getActionBy(), authorityDTO.getEmpId(), "req-approval", message, username);
         }
         requisition.setModifiedBy(username);
@@ -679,9 +742,9 @@ public class TrainingService {
 
         RequisitionDTO dto = requisitionMapper.toDto(requisition);
 
-        Map<Long, Organizer> organizerMap = getOrganizerMap();
-        Map<Long, Course> courseMap = getCourseMap();
-        Map<Long, EmployeeDTO> employeeMap = getLongEmployeeDTOMap();
+        Map<Long, Organizer> organizerMap = masterCacheService.getOrganizerMap();
+        Map<Long, Course> courseMap = masterCacheService.getCourseMap();
+        Map<Long, EmployeeDTO> employeeMap = masterCacheService.getLongEmployeeDTOMap();
 
         // Fetch latest transactions
         List<RequisitionTransaction> transactions =
@@ -817,7 +880,7 @@ public class TrainingService {
             throw new NotFoundException("Employee id cannot be null");
         }
 
-        List<String> statusCodes = List.of("AF", "AR");
+        List<String> statusCodes = List.of("AF", "SF", "AR", "AS", "CA", "FA");
 
         List<Requisition> requisitionList = requisitionRepository.findApprovalList(empId, statusCodes);
 
@@ -829,10 +892,10 @@ public class TrainingService {
         // Fetch master data
         List<Organizer> organizerList = organizerRepository.findAllByIsActive(1);
 
-        Map<String, Status> statusMap = getStatusMap();
-        Map<Long, Organizer> organizerMap = getOrganizerMap();
-        Map<Long, Course> courseMap = getCourseMap();
-        Map<Long, EmployeeDTO> employeeMap = getLongEmployeeDTOMap();
+        Map<String, Status> statusMap = masterCacheService.getStatusMap();
+        Map<Long, Organizer> organizerMap = masterCacheService.getOrganizerMap();
+        Map<Long, Course> courseMap = masterCacheService.getCourseMap();
+        Map<Long, EmployeeDTO> employeeMap = masterCacheService.getLongEmployeeDTOMap();
 
         List<RequisitionTransaction> transactions =
                 transactionRepository.findAllByActionToAndStatusCodeInAndIsActive(empId, statusCodes, 1);
@@ -901,8 +964,8 @@ public class TrainingService {
         log.info("Request to fetch Requisition transaction data for requisitionId {} by {}", reqId, username);
         List<RequisitionTransaction> transactionList = transactionRepository.findAllByRequisitionIdAndIsActive(reqId, 1);
 
-        Map<String, Status> statusMap = getStatusMap();
-        Map<Long, EmployeeDTO> employeeMap = getLongEmployeeDTOMap();
+        Map<String, Status> statusMap = masterCacheService.getStatusMap();
+        Map<Long, EmployeeDTO> employeeMap = masterCacheService.getLongEmployeeDTOMap();
 
         return transactionList.stream().map(data -> {
 
@@ -965,7 +1028,7 @@ public class TrainingService {
 
         List<EvaluationDTO> list = evaluationRepository.findEvaluationData(fromDate, toDate);
 
-        Map<Long, EmployeeDTO> employeeMap = getLongEmployeeDTOMap();
+        Map<Long, EmployeeDTO> employeeMap = masterCacheService.getLongEmployeeDTOMap();
 
         return list.stream()
                 .collect(Collectors.groupingBy(EvaluationDTO::getTraineeId))
@@ -1090,15 +1153,23 @@ public class TrainingService {
                 .orElseThrow(() -> new NotFoundException("Requisition not found"));
 
 
-        Map<Long, EmployeeDTO> employeeMap = getLongEmployeeDTOMap();
+        Map<Long, EmployeeDTO> employeeMap = masterCacheService.getLongEmployeeDTOMap();
         EmployeeDTO employeeDTO = employeeMap.get(dto.getActionBy());
 
-        if ("AR".equalsIgnoreCase(requisition.getStatus())) {
+        if ("AR".equalsIgnoreCase(requisition.getStatus()) || "SF".equalsIgnoreCase(requisition.getStatus())) {
+            requisition.setStatus("RS");
+            insertTransaction(requisition.getRequisitionId(), dto.getActionBy(), requisition.getInitiatingOfficer(), username, "RS", dto.getRemarks());
+        } else if ("AS".equalsIgnoreCase(requisition.getStatus()) || "CA".equalsIgnoreCase(requisition.getStatus())) {
+            if (requisition.getRegistrationFee().longValue() > 0 && !requisition.getStatus().equalsIgnoreCase("CA")) {
+                requisition.setStatus("CR");
+                insertTransaction(requisition.getRequisitionId(), dto.getActionBy(), requisition.getInitiatingOfficer(), username, "CR", dto.getRemarks());
+            } else {
+                requisition.setStatus("RV");
+                insertTransaction(requisition.getRequisitionId(), dto.getActionBy(), requisition.getInitiatingOfficer(), username, "RV", dto.getRemarks());
+            }
+        } else {
             requisition.setStatus("RR");
             insertTransaction(requisition.getRequisitionId(), dto.getActionBy(), requisition.getInitiatingOfficer(), username, "RR", dto.getRemarks());
-        } else {
-            requisition.setStatus("RV");
-            insertTransaction(requisition.getRequisitionId(), dto.getActionBy(), requisition.getInitiatingOfficer(), username, "RV", dto.getRemarks());
         }
         requisition.setModifiedBy(username);
         requisition.setModifiedDate(LocalDateTime.now());
@@ -1119,7 +1190,7 @@ public class TrainingService {
         FeedbackDTO dto = feedbackMapper.toDto(feedback);
         RequisitionDTO requisitionDTO = getRequisitionById(feedback.getRequisitionId(), username);
 
-        Map<Long, EmployeeDTO> employeeMap = getLongEmployeeDTOMap();
+        Map<Long, EmployeeDTO> employeeMap = masterCacheService.getLongEmployeeDTOMap();
         EmployeeDTO employeeDTO = employeeMap.get(feedback.getParticipantId());
 
         if (employeeDTO != null) {
@@ -1139,17 +1210,62 @@ public class TrainingService {
     }
 
     @Transactional
-    public Optional<FeedbackDTO> updateFeedback(@Valid FeedbackDTO dto, String username) {
+    public Optional<FeedbackDTO> updateFeedback(@Valid FeedbackDTO dto, String username) throws IOException {
+
         log.info("Request to update feedback for id {} by {}", dto.getFeedbackId(), username);
 
         if (dto.getFeedbackId() == null) {
-            throw new NotFoundException("Feedback Id can not be null");
+            throw new NotFoundException("Feedback Id cannot be null");
         }
+
         return feedbackRepository
                 .findById(dto.getFeedbackId())
                 .map(existingData -> {
                     existingData.setModifiedBy(username);
                     existingData.setModifiedDate(LocalDateTime.now());
+
+                    Requisition requisition = requisitionRepository
+                            .findById(existingData.getRequisitionId())
+                            .orElseThrow(() -> new NotFoundException("Requisition data not found"));
+
+                    Path fullPath = Paths.get(appStorage, "Requisition",
+                            requisition.getRequisitionNumber().replace("/", "_"), "Feedback");
+
+                    try {
+                        if (dto.getCertificateFile() != null && !dto.getCertificateFile().isEmpty()) {
+                            // Delete old certificate if exists
+                            if (existingData.getCertificate() != null) {
+                                Path oldCertPath = fullPath.resolve(existingData.getCertificate());
+                                Files.deleteIfExists(oldCertPath);
+                                log.info("Old certificate deleted: {}", oldCertPath);
+                            }
+
+                            // Save new file
+                            String newFileName = dto.getCertificateFile().getOriginalFilename();
+                            FileStorageUtil.saveFile(fullPath, newFileName, dto.getCertificateFile());
+                            existingData.setCertificate(newFileName);
+                        }
+
+
+                        if (dto.getInvoiceFile() != null && !dto.getInvoiceFile().isEmpty()) {
+                            // Delete old invoice if exists
+                            if (existingData.getInvoice() != null) {
+                                Path oldInvoicePath = fullPath.resolve(existingData.getInvoice());
+                                Files.deleteIfExists(oldInvoicePath);
+                                log.info("Old invoice deleted: {}", oldInvoicePath);
+                            }
+
+                            // Save new file
+                            String newFileName = dto.getInvoiceFile().getOriginalFilename();
+                            FileStorageUtil.saveFile(fullPath, newFileName, dto.getInvoiceFile());
+                            existingData.setInvoice(newFileName);
+                        }
+
+                    } catch (IOException e) {
+                        log.error("Error while updating files for feedback {}", dto.getFeedbackId(), e);
+                        throw new RuntimeException("File update failed");
+                    }
+
                     feedbackMapper.partialUpdate(existingData, dto);
                     return existingData;
                 })
@@ -1210,6 +1326,169 @@ public class TrainingService {
         return dto;
     }
 
+    @Cacheable(value = "getCourseTypeList")
+    public List<CourseTypeDTO> getCourseTypeList(String username) {
+        log.info("Course type list fetched by {}", username);
+        List<CourseType> typeList = courseTypeRepository.findAllByIsActive(1);
+
+        return typeList.stream()
+                .map(data -> {
+                    CourseTypeDTO typeDTO = new CourseTypeDTO();
+                    typeDTO.setCourseTypeId(data.getCourseTypeId());
+                    typeDTO.setCourseType(data.getCourseType());
+                    return typeDTO;
+                }).toList();
+    }
+
+    public List<RequisitionDTO> getRequisitionApprovedList(String roleName, String username) {
+        log.info("Requisition approved list fetched by {}", username);
+
+        List<Requisition> list = new ArrayList<>();
+
+        if (roleName.equalsIgnoreCase("ROLE_SA_HRT")) {
+            List<String> statusCodes = Arrays.asList("AV","DA");
+            list = requisitionRepository.findAllByStatusInAndIsActive(statusCodes,1);
+        } else {
+            List<String> statusCodes = Arrays.asList("AD","FC");
+            list = requisitionRepository.findAllByStatusInAndIsActive(statusCodes,1);
+        }
+        List<RequisitionDTO> dtoList = requisitionMapper.toDto(list);
+
+        Map<String, Status> statusMap = masterCacheService.getStatusMap();
+        Map<Long, Organizer> organizerMap = masterCacheService.getOrganizerMap();
+        Map<Long, Course> courseMap = masterCacheService.getCourseMap();
+        Map<Long, EmployeeDTO> employeeMap = masterCacheService.getLongEmployeeDTOMap();
+
+        for (RequisitionDTO dto : dtoList) {
+
+            // Course + Organizer
+            Course course = courseMap.get(dto.getCourseId());
+            if (course != null) {
+
+                dto.setCourseName(course.getCourseName());
+                dto.setVenue(course.getVenue());
+                dto.setOfflineRegistrationFee(course.getOfflineRegistrationFee());
+                dto.setOnlineRegistrationFee(course.getOnlineRegistrationFee());
+
+                Organizer organizer = organizerMap.get(course.getOrganizerId());
+                if (organizer != null) {
+                    dto.setOrganizerId(organizer.getOrganizerId());
+                    dto.setOrganizer(organizer.getOrganizer());
+                    dto.setOrganizerContactName(organizer.getContactName());
+                    dto.setOrganizerPhoneNo(organizer.getPhoneNo());
+                    dto.setOrganizerFaxNo(organizer.getFaxNo());
+                    dto.setOrganizerEmail(organizer.getEmail());
+                }
+            }
+
+            Status status = statusMap.get(dto.getStatus());
+            if (status != null) {
+                dto.setStatusName(status.getStatusName());
+                dto.setStatusColor(status.getColorCode());
+            }
+
+            if (dto.getInitiatingOfficer() != null) {
+                EmployeeDTO employeeDTO = employeeMap.get(dto.getInitiatingOfficer());
+                if (employeeDTO != null) {
+                    dto.setInitiatingOfficerName(buildEmployeeName(employeeDTO, false));
+                    dto.setEmpDesigName(employeeDTO.getEmpDesigName());
+                }
+            }
+        }
+
+        return dtoList;
+    }
+
+    @Transactional
+    public DirectorApproveDTO reqForwardToDirector(DirectorApproveDTO dto, String username) {
+        log.info("Requisitions forward to director for ids {} by {} ", dto, username);
+
+        if (dto == null || dto.getRequisitionIds() == null || dto.getRequisitionIds().isEmpty()) {
+            throw new RuntimeException("Requisition Id list cannot be empty");
+        }
+
+        List<Requisition> requisitions = requisitionRepository.findAllById(dto.getRequisitionIds());
+
+        if (requisitions.isEmpty()) {
+            throw new NotFoundException("No requisitions found for given ids");
+        }
+
+        LoginEmployeeDto login = loginRepository.findEmployeeByRoleName("ROLE_DIRECTOR");
+
+        if (login == null || login.getLoginId() == null) {
+            throw new NotFoundException("ROLE_DIRECTOR not found");
+        }
+
+        for (Requisition req : requisitions) {
+            if(req.getStatus().equalsIgnoreCase("DA")){
+                req.setStatus("FC");
+                insertTransaction(req.getRequisitionId(), dto.getActionBy(), login.getEmpId(), username, "FC", null);
+            }else {
+                req.setStatus("AD");
+                insertTransaction(req.getRequisitionId(), dto.getActionBy(), login.getEmpId(), username, "AD", null);
+            }
+            req.setModifiedBy(username);
+            req.setModifiedDate(LocalDateTime.now());
+        }
+
+        requisitionRepository.saveAll(requisitions);
+        return dto;
+    }
+
+    @Transactional
+    public DirectorApproveDTO approveRequisition(DirectorApproveDTO dto, String username) {
+        log.info("Requisitions approved by director for ids {} by {} ", dto, username);
+
+        if (dto == null || dto.getRequisitionIds() == null || dto.getRequisitionIds().isEmpty()) {
+            throw new RuntimeException("Requisition Id list cannot be empty");
+        }
+
+        List<Requisition> requisitions = requisitionRepository.findAllById(dto.getRequisitionIds());
+
+        if (requisitions.isEmpty()) {
+            throw new NotFoundException("No requisitions found for given ids");
+        }
+
+        for (Requisition req : requisitions) {
+            if("FC".equalsIgnoreCase(req.getStatus())){
+                req.setStatus("FA");
+                insertTransaction(req.getRequisitionId(), dto.getActionBy(), dto.getActionBy(), username, "FA", null);
+            }else{
+                req.setStatus("CO");
+                insertTransaction(req.getRequisitionId(), dto.getActionBy(), dto.getActionBy(), username, "CO", null);
+            }
+            req.setModifiedBy(username);
+            req.setModifiedDate(LocalDateTime.now());
+        }
+
+        requisitionRepository.saveAll(requisitions);
+        return dto;
+    }
+
+    public DirectorApproveDTO recommendReqToDFA(DirectorApproveDTO dto, String username) {
+        log.info("Requisitions recommend to DFA by director for ids {} by {} ", dto, username);
+
+        if (dto == null || dto.getRequisitionIds() == null || dto.getRequisitionIds().isEmpty()) {
+            throw new RuntimeException("Requisition Id list cannot be empty");
+        }
+
+        List<Requisition> requisitions = requisitionRepository.findAllById(dto.getRequisitionIds());
+
+        if (requisitions.isEmpty()) {
+            throw new NotFoundException("No requisitions found for given ids");
+        }
+
+        for (Requisition req : requisitions) {
+            req.setStatus("DA");
+            req.setModifiedBy(username);
+            req.setModifiedDate(LocalDateTime.now());
+            insertTransaction(req.getRequisitionId(), dto.getActionBy(), dto.getActionBy(), username, "DA", null);
+        }
+
+        requisitionRepository.saveAll(requisitions);
+        return dto;
+    }
+
     private void insertTransaction(Long id, Long actionBy, Long actionTo, String username, String status, String remarks) {
         RequisitionTransaction transaction = new RequisitionTransaction();
         transaction.setRequisitionId(id);
@@ -1236,33 +1515,6 @@ public class TrainingService {
         notification.setCreatedDate(LocalDateTime.now());
         notification.setIsActive(1);
         notificationRepository.save(notification);
-    }
-
-    @Cacheable(value = "employeeMapCache", key = "'employeeMap'")
-    public Map<Long, EmployeeDTO> getLongEmployeeDTOMap() {
-        List<EmployeeDTO> employeeList = masterClient.getEmployeeMasterList(xApiKey);
-
-        return employeeList.stream()
-                .filter(e -> labCode != null && labCode.equalsIgnoreCase(e.getLabCode()))
-                .collect(Collectors.toMap(EmployeeDTO::getEmpId, emp -> emp));
-    }
-
-    @Cacheable(value = "organizerCache", key = "'organizers'")
-    public Map<Long, Organizer> getOrganizerMap() {
-        return organizerRepository.findAllByIsActive(1).stream()
-                .collect(Collectors.toMap(Organizer::getOrganizerId, Function.identity()));
-    }
-
-    @Cacheable(value = "courseCache", key = "'courses'")
-    public Map<Long, Course> getCourseMap() {
-        return courseRepository.findAllByIsActive(1).stream()
-                .collect(Collectors.toMap(Course::getCourseId, Function.identity()));
-    }
-
-    @Cacheable(value = "statusCache", key = "'status'")
-    public Map<String, Status> getStatusMap() {
-        return statusRepository.findAll().stream()
-                .collect(Collectors.toMap(Status::getStatusCode, Function.identity()));
     }
 
 }

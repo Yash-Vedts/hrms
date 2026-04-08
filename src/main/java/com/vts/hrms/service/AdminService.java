@@ -34,7 +34,7 @@ public class AdminService {
     private final FormDetailRepository formDetailRepository;
     private final FormRoleAccessRepository formRoleAccessRepository;
     private final NotificationRepository notificationRepository;
-    private final TrainingService trainingService;
+    private final MasterCacheService masterCacheService;
 
 
     @Value("${x_api_key}")
@@ -43,7 +43,7 @@ public class AdminService {
     @Value("${labCode}")
     private String labCode;
 
-    public AdminService(RoleRepository roleRepository, LoginRepository loginRepository, RoleSecurityRepository roleSecurityRepository, MasterClientService masterClient, FormModuleRepository formModuleRepository, FormDetailRepository formDetailRepository, FormRoleAccessRepository formRoleAccessRepository, NotificationRepository notificationRepository, TrainingService trainingService) {
+    public AdminService(RoleRepository roleRepository, LoginRepository loginRepository, RoleSecurityRepository roleSecurityRepository, MasterClientService masterClient, FormModuleRepository formModuleRepository, FormDetailRepository formDetailRepository, FormRoleAccessRepository formRoleAccessRepository, NotificationRepository notificationRepository, MasterCacheService masterCacheService) {
         this.roleRepository = roleRepository;
         this.loginRepository = loginRepository;
         this.roleSecurityRepository = roleSecurityRepository;
@@ -52,7 +52,7 @@ public class AdminService {
         this.formDetailRepository = formDetailRepository;
         this.formRoleAccessRepository = formRoleAccessRepository;
         this.notificationRepository = notificationRepository;
-        this.trainingService = trainingService;
+        this.masterCacheService = masterCacheService;
     }
 
     @Cacheable(value = "roleList")
@@ -73,7 +73,7 @@ public class AdminService {
         log.info("Fetching all users");
         List<UserResponseDTO> userList = loginRepository.getUserList();
 
-        Map<Long, EmployeeDTO> employeeMap = trainingService.getLongEmployeeDTOMap();
+        Map<Long, EmployeeDTO> employeeMap = masterCacheService.getLongEmployeeDTOMap();
 
         // Set employee details into user response
         for (UserResponseDTO user : userList) {
@@ -105,12 +105,12 @@ public class AdminService {
         log.info("Adding new user for username: {}", dto.getUsername());
 
         try {
-            String password = "Vts@1234";
+//            String password = "Vts@1234";
+            String password = "Cair@123";
 
             // 1. Fetch Role
             RoleSecurity role = roleSecurityRepository.findById(dto.getRoleId())
-                    .orElseThrow(() -> new RuntimeException(
-                            "Role not found for roleId: " + dto.getRoleId()));
+                    .orElseThrow(() -> new RuntimeException("Role not found for roleId: " + dto.getRoleId()));
 
             // 2. Create Login Object
             Login login = new Login();

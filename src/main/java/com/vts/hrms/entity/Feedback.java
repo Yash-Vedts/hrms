@@ -63,6 +63,12 @@ public class Feedback {
     @Column(name = "seminar_venue")
     private String seminarVenue;
 
+    @Column(name = "certificate")
+    private String certificate;
+
+    @Column(name = "invoice")
+    private String invoice;
+
     @Column(name = "is_accepted")
     private String isAccepted;
 

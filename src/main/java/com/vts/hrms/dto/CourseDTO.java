@@ -17,8 +17,12 @@ public class CourseDTO implements Serializable {
     @NotBlank(message = "Course Name is required")
     private String courseName;
 
+    private String courseLevel;
+    private Long courseTypeId;
+
     @NotNull(message = "Eligibility is required")
     private Long eligibilityId;
+
 
     private String eligibilityName;
 
@@ -33,6 +37,8 @@ public class CourseDTO implements Serializable {
 
     @NotBlank(message = "Venue is required")
     private String venue;
+
+    private Long noOfNomination;
 
     @NotNull(message = "From date is required")
     private LocalDate fromDate;

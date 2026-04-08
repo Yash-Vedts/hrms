@@ -26,8 +26,14 @@ public class Course implements Serializable {
     @Column(name = "course_code")
     private String courseCode;
 
+    @Column(name = "course_level")
+    private String courseLevel;
+
     @Column(name = "course_name")
     private String courseName;
+
+    @Column(name = "course_type_id")
+    private Long courseTypeId;
 
     @Column(name = "organizer_id")
     private Long organizerId;
@@ -49,6 +55,9 @@ public class Course implements Serializable {
 
     @Column(name = "venue")
     private String venue;
+
+    @Column(name = "no_of_nomination")
+    private Long noOfNomination;
 
     @Size(max = 100)
     @Column(name = "created_by", length = 100)
