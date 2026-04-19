@@ -1612,22 +1612,20 @@ public class TrainingService {
         List<DistributionDTO> dtoList = distributionMapper.toDto(list);
 
         Map<Long, EmployeeDTO> employeeDTOMap = masterCacheService.getLongEmployeeDTOMap();
-        Map<Long, ProjectMasterDTO> projectMasterDTOMap = masterCacheService.getProjectDTOMap();
 
         dtoList.forEach(data -> {
 
-            ProjectMasterDTO projectMasterDTO = projectMasterDTOMap.get(data.getProjectId());
             EmployeeDTO employeeDTO = employeeDTOMap.get(data.getEmpId());
             EmployeeDTO aoEmpDto = employeeDTOMap.get(data.getAoEmpId());
             EmployeeDTO roEmpDto = employeeDTOMap.get(data.getRoEmpId());
 
-            data.setProjectCode(projectMasterDTO.getProjectCode());
-            data.setEmployeeName(employeeDTO.getEmpName());
-            data.setAoOfficerName(aoEmpDto.getEmpName());
-            data.setRoOfficerName(roEmpDto.getEmpName());
+            data.setEmployeeName(buildEmployeeName(employeeDTO, true));
+            data.setAoOfficerName(buildEmployeeName(aoEmpDto, true));
+            data.setRoOfficerName(buildEmployeeName(roEmpDto, true));
+
         });
 
-        return dtoList;
+      return dtoList;
     }
 
     public DistributionDTO getDistributionByID(Long distributionId, String username) {
